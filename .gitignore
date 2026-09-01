@@ -4,9 +4,10 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.env.*
+!.env.example
 .DS_Store
 .idea/
 node_modules/
 .next/
 *.parquet
-
