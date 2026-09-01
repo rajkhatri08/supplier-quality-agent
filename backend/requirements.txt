@@ -1,0 +1,6 @@
+pandas==3.0.5
+numpy==2.5.2
+SQLAlchemy==2.0.52
+psycopg[binary]==3.3.5
+python-dotenv==1.2.3
+
