@@ -76,6 +76,42 @@ VOLUME_BANDS = {
     "Sealants":        (30_000, 45_000),
 }
 
+# Baseline defect rate per commodity, as PPM. Weld assemblies run hotter than
+# fasteners — more process steps, more ways to go wrong.
+BASE_PPM = {
+    "Stampings":       (280, 420),
+    "Weld Assemblies": (300, 460),
+    "Fasteners":       (90, 160),
+    "Sealants":        (180, 300),
+}
+
+# Defect codes available per commodity, so a sealant part never records a
+# weld defect.
+CODES_BY_COMMODITY = {
+    "Stampings":       ["D-STP-01", "D-STP-02", "D-STP-03", "D-STP-04"],
+    "Weld Assemblies": ["D-WLD-01", "D-WLD-02", "D-WLD-03", "D-WLD-04"],
+    "Fasteners":       ["D-FST-01", "D-FST-02"],
+    "Sealants":        ["D-SLR-01", "D-SLR-02"],
+}
+
+STATIONS = {
+    "Underbody":  ["BIW-Underbody-01", "BIW-Underbody-02"],
+    "Side Panel": ["BIW-Framing-01", "BIW-Framing-02"],
+    "Roof":       ["BIW-Framing-03", "BIW-Roof-01"],
+    "Closures":   ["BIW-Slat-01", "BIW-Slat-02"],
+    "Front End":  ["BIW-Docking-01", "BIW-Underbody-03"],
+}
+
+# --- planted patterns: see docs/design-decisions.md ---
+TREND_SUPPLIER = "SUP-003"
+TREND_MULTIPLIERS = [1.25, 1.5, 1.8, 2.1, 2.4, 2.7]
+
+SPIKE_PART = "PN-1042"
+SPIKE_MONTH = date(2025, 11, 1)
+SPIKE_MULTIPLIER = 8.0
+
+CONCENTRATION_CODE = "D-WLD-01"
+
 
 def build_suppliers() -> pd.DataFrame:
     rows = [
@@ -172,6 +208,79 @@ def build_production_volume(
     return pd.DataFrame(rows, columns=["part_id", "month", "units_produced"])
 
 
+def build_defects(
+    parts: pd.DataFrame,
+    suppliers: pd.DataFrame,
+    volume: pd.DataFrame,
+) -> pd.DataFrame:
+    rng = random.Random(SEED + 2)
+
+    commodity_by_supplier = dict(
+        zip(suppliers["supplier_id"], suppliers["commodity"])
+    )
+    part_meta = {
+        r.part_id: (r.supplier_id, r.vehicle_system)
+        for r in parts.itertuples()
+    }
+    trend_window = {m: i for i, m in enumerate(month_series()[-6:])}
+
+    rows = []
+    for v in volume.itertuples():
+        # volume["month"] may come back as date or Timestamp depending on how
+        # pandas typed the column. Normalise, or the pattern comparisons below
+        # silently never match and no patterns get planted.
+        month = pd.Timestamp(v.month).date()
+
+        supplier_id, system = part_meta[v.part_id]
+        commodity = commodity_by_supplier[supplier_id]
+
+        low, high = BASE_PPM[commodity]
+        ppm = rng.uniform(low, high)
+
+        # Pattern 1 — trend: SUP-003 climbs across the final six months.
+        if supplier_id == TREND_SUPPLIER and month in trend_window:
+            ppm *= TREND_MULTIPLIERS[trend_window[month]]
+
+        # Pattern 2 — spike: one bad coil, one part, one month.
+        if v.part_id == SPIKE_PART and month == SPIKE_MONTH:
+            ppm *= SPIKE_MULTIPLIER
+
+        expected = ppm * v.units_produced / 1_000_000
+        n_events = rng.randint(
+            max(1, int(expected * 0.4)), max(2, int(expected * 0.9))
+        )
+
+        codes = CODES_BY_COMMODITY[commodity]
+        concentrated = CONCENTRATION_CODE in codes
+        if concentrated:
+            weights = [
+                3.0 if (c == CONCENTRATION_CODE and supplier_id == TREND_SUPPLIER)
+                else 0.5 if c == CONCENTRATION_CODE
+                else 1.0
+                for c in codes
+            ]
+
+        for _ in range(n_events):
+            # Pattern 3 — concentration: D-WLD-01 favours SUP-003's parts.
+            if concentrated:
+                code = rng.choices(codes, weights=weights, k=1)[0]
+            else:
+                code = rng.choice(codes)
+
+            rows.append((
+                v.part_id,
+                code,
+                date(month.year, month.month, rng.randint(1, 28)),
+                rng.randint(1, 4),
+                rng.choice(STATIONS[system]),
+            ))
+
+    return pd.DataFrame(
+        rows,
+        columns=["part_id", "defect_code", "detected_date", "quantity", "line_station"],
+    )
+
+
 def main() -> None:
     suppliers = build_suppliers()
     suppliers.to_sql(
@@ -197,6 +306,13 @@ def main() -> None:
         if_exists="append", index=False, chunksize=500,
     )
     print(f"production_volume: {len(volume)} rows written")
+
+    defects = build_defects(parts, suppliers, volume)
+    defects.to_sql(
+        "defects", engine, schema="spike",
+        if_exists="append", index=False, chunksize=1000,
+    )
+    print(f"defects: {len(defects)} rows written")
 
 
 if __name__ == "__main__":
