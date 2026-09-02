@@ -82,6 +82,24 @@ def build_suppliers() -> pd.DataFrame:
     )
 
 
+def build_defect_codes() -> pd.DataFrame:
+    rows = [
+        ("D-WLD-01", "Weld porosity",                "Critical"),
+        ("D-WLD-02", "Weld spatter",                 "Minor"),
+        ("D-WLD-03", "Undersized weld nugget",       "Critical"),
+        ("D-WLD-04", "Burn-through",                 "Major"),
+        ("D-STP-01", "Split at draw radius",         "Critical"),
+        ("D-STP-02", "Surface scoring",              "Minor"),
+        ("D-STP-03", "Dimensional out-of-tolerance", "Major"),
+        ("D-STP-04", "Edge burr",                    "Minor"),
+        ("D-FST-01", "Cross-threaded fastener",      "Major"),
+        ("D-FST-02", "Missing fastener",             "Critical"),
+        ("D-SLR-01", "Sealer bead discontinuity",    "Major"),
+        ("D-SLR-02", "Sealer overspray",             "Minor"),
+    ]
+    return pd.DataFrame(rows, columns=["defect_code", "description", "severity"])
+
+
 def build_parts(suppliers: pd.DataFrame) -> pd.DataFrame:
     rng = random.Random(SEED)
     commodity_by_supplier = dict(
@@ -94,8 +112,6 @@ def build_parts(suppliers: pd.DataFrame) -> pd.DataFrame:
         commodity = commodity_by_supplier[supplier_id]
         catalog = PART_CATALOG[commodity]
 
-        # Cycle through the catalog so a supplier's parts are distinct until
-        # the catalog is exhausted, then repeat with a variant suffix.
         order = catalog * ((count // len(catalog)) + 1)
         rng.shuffle(order)
 
@@ -117,6 +133,12 @@ def main() -> None:
         "suppliers", engine, schema="spike", if_exists="append", index=False
     )
     print(f"suppliers: {len(suppliers)} rows written")
+
+    defect_codes = build_defect_codes()
+    defect_codes.to_sql(
+        "defect_codes", engine, schema="spike", if_exists="append", index=False
+    )
+    print(f"defect_codes: {len(defect_codes)} rows written")
 
     parts = build_parts(suppliers)
     parts.to_sql(
