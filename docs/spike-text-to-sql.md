@@ -46,9 +46,9 @@ where the answer is genuinely in doubt:
 ## Detection method
 
 Each question's expected answer is computed independently **before** the
-generated SQL runs — by hand-written SQL or pandas. Without that, "0 silent
-failures" only means "none I noticed", which is the clean-exit-code trap in
-a new costume.
+generated SQL runs — by hand-written SQL. Without that, "0 silent failures"
+only means "none I noticed", which is the clean-exit-code trap in a new
+costume.
 
 Writing these by hand surfaced two real instances of the failure class the
 spike is designed to catch:
@@ -64,12 +64,42 @@ spike is designed to catch:
 Both are silent failures produced by hand, which is the argument for the
 detection method stated above.
 
-## Honesty caveat for the writeup
+## Question discrimination
 
-Even at 25 questions this is a directional signal, not a measurement — the
-same limitation already stated about the 23-question eval set in App 1. An
-ambiguous result (exactly 1 silent failure) means run more questions, not
-pick the preferred answer.
+A question only tests something if a wrong approach produces a visibly
+different answer. Each was checked against the wrong-but-plausible query a
+model is likely to produce:
+
+| # | Discriminates? | Evidence |
+|---|---|---|
+| Q6 | **No** | Average-of-monthly-PPMs and pooled PPM agree to within 0.5 PPM — inside tolerance. Volume noise of ±12% is too narrow for weighting to matter. Kept, and recorded as non-discriminating |
+| Q9 | Yes | Filtering the denominator by severity gives 742.88 vs the correct 701.04 — a 6% inflation, well outside tolerance |
+| Q10 | Yes | An inner join returns the 2 codes that *were* used instead of the 10 that were not — confident, non-empty, and the opposite of what was asked |
+
+## Finding: absence is not representable in this dataset
+
+The original Q10 asked which parts recorded zero defect events in a month
+with production above 20,000 units. The correct answer is empty — but so is
+the answer from an inner join, so the question could not discriminate.
+
+Root cause is in the generator, not the query:
+
+```python
+n_events = rng.randint(max(1, int(expected * 0.4)), max(2, int(expected * 0.9)))
+```
+
+The `max(1, ...)` floor guarantees at least one defect event for every
+part-month. Confirmed by measurement: 703 part-months exceed 20,000 units,
+and **zero** part-months anywhere in the dataset are defect-free.
+
+So no question of the form "which X had no Y in period Z" is answerable on
+this data. That is a limitation of the synthetic data, not of text-to-SQL,
+and it would have silently invalidated the question had it not been checked.
+Q10 was replaced with an absence question the data can answer — one about
+codes never used, rather than months never affected.
+
+If the Phase 3 generator should support absence testing, the floor needs to
+allow zero for low-PPM part-months.
 
 ## Tier 1 questions — frozen before generation
 
@@ -89,43 +119,35 @@ Q4  Which defect code appears most often on parts supplied by SUP-009?
 Q5  What was SUP-003's defect PPM in August 2026?
     Tests: the ratio. Defect units from one fact table, production units
     from another, joined on part AND month, then scaled by 1,000,000.
-    This is where naive SQL starts returning plausible wrong numbers.
 
 Q6  For each commodity, what is the average monthly PPM over the full
     24-month window?
     Tests: two-level aggregation and date alignment between a fact table
-    keyed by month and one keyed by day.
-    Designed to test order of operations — average of monthly PPMs vs PPM
-    from pooled totals. Measured, and on this data the two readings agree
-    to within 0.5 PPM, so the question does NOT discriminate between them.
-    Kept anyway: the CTE structure and the LEFT JOIN with COALESCE are
-    still real, and a question that fails to discriminate is a finding
-    worth recording rather than a question worth hiding.
+    keyed by month and one keyed by day. Does not discriminate — see above.
 
 Q7  Which part had the largest single-month increase in defect units
     compared with its own previous month?
-    Tests: window function or self-join over an ordered series.
+    Tests: window function over a partitioned, ordered series. Also tests
+    NULL ordering — Postgres sorts NULLs first under DESC, so NULLS LAST
+    is required, not optional.
 
 Q8  Which suppliers had a higher total defect count but a lower defect
     PPM than SUP-003 over the last 12 months?
     Tests: both metrics at once, plus comparison against a subquery value.
-    A query that answers only one half still returns rows.
+    A query answering only one half still returns rows.
+    "Defect count" is read as SUM(quantity), i.e. defect units.
 
 Q9  For Critical-severity defects only, which supplier had the worst PPM
     in the final 6 months, and what was it?
-    Tests: severity filter on the defect_codes dimension combined with the
-    ratio — the filter must apply to the numerator only, never the
-    denominator. Filtering both is the classic silent failure here.
+    Tests: the severity filter must apply to the numerator only. Production
+    volume has no severity. Filtering both runs cleanly and inflates PPM.
+    Note: the same supplier wins either way — it is the "and what was it"
+    half that catches the error.
 
-Q10 Which parts recorded zero defect events in any month where they had
-    production volume above 20,000 units?
-    Tests: absence. Requires LEFT JOIN or NOT EXISTS. An INNER JOIN
-    returns a clean, confident, completely wrong answer.
-
-Q9 and Q10 are deliberately booby-trapped. Q9 invites filtering the volume
-table by severity — meaningless, but it runs and returns an inflated PPM.
-Q10 punishes an inner join with a silently truncated result. Both fail
-silently, which is the class the threshold treats as disqualifying.
+Q10 Which defect codes were never recorded against any SUP-005 part?
+    Tests: absence. Requires NOT EXISTS or LEFT JOIN ... IS NULL, starting
+    from the full code list. An inner join returns the codes that *were*
+    used — the exact inverse of the question.
 
 ## Expected answers
 
@@ -133,33 +155,26 @@ Computed by hand against the spike schema before any SQL was generated.
 
 | # | Expected answer | Notes |
 |---|---|---|
-| Q1 | 295 defect events | ~4.6 events per part-month across 8 parts, 8 months — consistent with the trend inflating the later months |
-| Q2 | Side Panel, 1,315 events | Full breakdown: Side Panel 1315, Closures 1133, Roof 934, Underbody 875, Front End 766. Sums to 5,023 — confirms the join neither drops nor duplicates rows |
+| Q1 | 295 defect events | ~4.6 events per part-month across 8 parts, 8 months |
+| Q2 | Side Panel, 1,315 events | Side Panel 1315, Closures 1133, Roof 934, Underbody 875, Front End 766 — sums to 5,023, confirming the join neither drops nor duplicates rows |
 | Q3 | 2,144,194 units | SUP-003 1,183,322 + SUP-010 581,780 + SUP-004 379,092 |
-| Q4 | D-STP-01, 296 events | Runners-up 272 / 258 / 247. Lead of 24 makes the answer unambiguous but a wrong pick would look plausible |
-| Q5 | 1369.51 PPM | 133 defect units / 97,115 production units × 1,000,000. Tolerance ±1 |
-| Q6 | Weld Assemblies 595.07, Stampings 519.25, Sealants 353.28, Fasteners 184.60 | Average of monthly PPMs. Pooled reading gives 594.93 / 519.26 / 352.84 / 184.88 — inside the ±1 tolerance, so both readings score correct. Volume noise of ±12% is too narrow for weighting to change the result |
-| Q7 | _pending_ | |
-| Q8 | _pending_ | |
-| Q9 | _pending_ | |
-| Q10 | _pending_ | |
+| Q4 | D-STP-01, 296 events | Runners-up 272 / 258 / 247. Lead of 24 is unambiguous but a wrong pick would look plausible |
+| Q5 | 1369.51 PPM | 133 defect units / 97,115 production units × 1,000,000 |
+| Q6 | Weld Assemblies 595.07, Stampings 519.25, Sealants 353.28, Fasteners 184.60 | Pooled reading gives 594.93 / 519.26 / 352.84 / 184.88 — inside tolerance, so both readings score correct |
+| Q7 | PN-1042, 2025-11, increase of 104 defect units | 114 units against ~10 the previous month. This is the planted spike, and it is the largest month-over-month jump in the dataset |
+| Q8 | SUP-009 | 1,353 defect units at 550.73 PPM vs SUP-003's 954 at 806.20. Qualifies because it has 9 parts and ~2.46M units over 12 months — more absolute defects from volume, better rate because it is not degrading |
+| Q9 | SUP-003, 701.04 PPM | Trap answer, filtering the denominator by severity: 742.88 |
+| Q10 | 10 codes — D-SLR-01/02, D-STP-01/02/03/04, D-WLD-01/02/03/04 | Every non-fastener code. SUP-005 supplies fasteners, so only D-FST-01 and D-FST-02 can appear against its parts. Trap answer: those 2 codes |
 
 ### Note on date boundaries
 
 `production_volume.month` stores the first of the month; `defects.detected_date`
-stores a specific day. Any query spanning both tables must handle that
-difference. The generator only ever writes days 1–28, so a `<= 'YYYY-MM-31'`
-bound happens to be safe here — but that is luck, not correctness, and would
-break on data where defects land on the 30th.
-
-### Note on question discrimination
-
-Q6 was written to catch a specific conceptual error and, when measured, could
-not distinguish it. That is recorded rather than quietly fixed. It is worth
-checking the same property for Q8 and Q9 once their expected answers exist:
-a question that returns the same result whether or not the model understood
-it is not testing anything.
+stores a specific day. Any query spanning both tables needs
+`date_trunc('month', detected_date)::date` to align them. `date_trunc` returns
+a timestamp, so the cast matters — without it the join can silently return no
+matches, and a `COALESCE(..., 0)` then turns that into a confident zero.
 
 ## Results
 
-_To be filled in after the run. Threshold and questions above are frozen._
+_To be filled in after the run. Threshold, questions and expected answers
+above are frozen._
