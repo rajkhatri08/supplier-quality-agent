@@ -11,7 +11,7 @@ PPM rises steadily across the last 6 months of the 24-month window,
 roughly 300 to 730 PPM. Models welding electrodes wearing down between
 replacement intervals: a gradual degradation, not a single event.
 
-**Spike** — PN-1042, underbody stamping.
+**Spike** — PN-1042, a rocker panel (side panel stamping, supplied by SUP-009).
 Normal months around 5 defects, one month around 40.
 Models a single bad steel coil entering the line.
 
@@ -39,3 +39,10 @@ needs a document: an audit note, an 8D, a gauge R&R record.
 This is the strongest argument for routing to both SQL and documents. It
 is recorded here as reasoning, not built into the data — see Phase 6,
 where it becomes an eval question that genuinely requires both routes.
+
+## Part naming and vehicle system pairing
+
+Part names and vehicle systems must be paired correctly, not chosen
+independently. Random pairing produced contradictions like "Underbody Assy"
+filed under Side Panel. Anyone with manufacturing background spots that
+immediately, and it undermines the credibility the project depends on.
