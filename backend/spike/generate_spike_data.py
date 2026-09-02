@@ -5,6 +5,7 @@ Throwaway. Not the production schema — see docs/design-decisions.md.
 
 import os
 import random
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -61,6 +62,18 @@ PART_CATALOG = {
         ("Hem Flange Adhesive", "Closures"),
         ("Underbody Sealer", "Underbody"),
     ],
+}
+
+START_YEAR, START_MONTH = 2024, 9   # 24 months ending Aug 2026
+
+# Monthly build volume varies by commodity. Fasteners ship in far larger
+# quantities than weld assemblies, so PPM and raw defect count will disagree
+# about who is worst — which is what makes the eval questions interesting.
+VOLUME_BANDS = {
+    "Stampings":       (18_000, 26_000),
+    "Weld Assemblies": (9_000, 14_000),
+    "Fasteners":       (55_000, 80_000),
+    "Sealants":        (30_000, 45_000),
 }
 
 
@@ -127,6 +140,38 @@ def build_parts(suppliers: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def month_series(n: int = 24) -> list[date]:
+    months = []
+    year, month = START_YEAR, START_MONTH
+    for _ in range(n):
+        months.append(date(year, month, 1))
+        month += 1
+        if month == 13:
+            year, month = year + 1, 1
+    return months
+
+
+def build_production_volume(
+    parts: pd.DataFrame, suppliers: pd.DataFrame
+) -> pd.DataFrame:
+    rng = random.Random(SEED + 1)
+    commodity_by_supplier = dict(
+        zip(suppliers["supplier_id"], suppliers["commodity"])
+    )
+    months = month_series()
+
+    rows = []
+    for part_id, supplier_id in zip(parts["part_id"], parts["supplier_id"]):
+        low, high = VOLUME_BANDS[commodity_by_supplier[supplier_id]]
+        baseline = rng.randint(low, high)
+        for m in months:
+            # +/-12% month-to-month noise around this part's own baseline
+            units = int(baseline * rng.uniform(0.88, 1.12))
+            rows.append((part_id, m, units))
+
+    return pd.DataFrame(rows, columns=["part_id", "month", "units_produced"])
+
+
 def main() -> None:
     suppliers = build_suppliers()
     suppliers.to_sql(
@@ -145,6 +190,13 @@ def main() -> None:
         "parts", engine, schema="spike", if_exists="append", index=False
     )
     print(f"parts: {len(parts)} rows written")
+
+    volume = build_production_volume(parts, suppliers)
+    volume.to_sql(
+        "production_volume", engine, schema="spike",
+        if_exists="append", index=False, chunksize=500,
+    )
+    print(f"production_volume: {len(volume)} rows written")
 
 
 if __name__ == "__main__":
