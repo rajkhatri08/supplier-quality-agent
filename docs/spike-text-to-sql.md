@@ -93,8 +93,14 @@ Q5  What was SUP-003's defect PPM in August 2026?
 
 Q6  For each commodity, what is the average monthly PPM over the full
     24-month window?
-    Tests: same ratio, grouped. Order of operations matters — the average
-    of monthly PPMs is not the same as PPM computed from summed totals.
+    Tests: two-level aggregation and date alignment between a fact table
+    keyed by month and one keyed by day.
+    Designed to test order of operations — average of monthly PPMs vs PPM
+    from pooled totals. Measured, and on this data the two readings agree
+    to within 0.5 PPM, so the question does NOT discriminate between them.
+    Kept anyway: the CTE structure and the LEFT JOIN with COALESCE are
+    still real, and a question that fails to discriminate is a finding
+    worth recording rather than a question worth hiding.
 
 Q7  Which part had the largest single-month increase in defect units
     compared with its own previous month?
@@ -132,7 +138,7 @@ Computed by hand against the spike schema before any SQL was generated.
 | Q3 | 2,144,194 units | SUP-003 1,183,322 + SUP-010 581,780 + SUP-004 379,092 |
 | Q4 | D-STP-01, 296 events | Runners-up 272 / 258 / 247. Lead of 24 makes the answer unambiguous but a wrong pick would look plausible |
 | Q5 | 1369.51 PPM | 133 defect units / 97,115 production units × 1,000,000. Tolerance ±1 |
-| Q6 | _pending_ | |
+| Q6 | Weld Assemblies 595.07, Stampings 519.25, Sealants 353.28, Fasteners 184.60 | Average of monthly PPMs. Pooled reading gives 594.93 / 519.26 / 352.84 / 184.88 — inside the ±1 tolerance, so both readings score correct. Volume noise of ±12% is too narrow for weighting to change the result |
 | Q7 | _pending_ | |
 | Q8 | _pending_ | |
 | Q9 | _pending_ | |
@@ -145,6 +151,14 @@ stores a specific day. Any query spanning both tables must handle that
 difference. The generator only ever writes days 1–28, so a `<= 'YYYY-MM-31'`
 bound happens to be safe here — but that is luck, not correctness, and would
 break on data where defects land on the 30th.
+
+### Note on question discrimination
+
+Q6 was written to catch a specific conceptual error and, when measured, could
+not distinguish it. That is recorded rather than quietly fixed. It is worth
+checking the same property for Q8 and Q9 once their expected answers exist:
+a question that returns the same result whether or not the model understood
+it is not testing anything.
 
 ## Results
 
