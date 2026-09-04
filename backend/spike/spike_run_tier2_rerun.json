@@ -1,0 +1,122 @@
+[
+  {
+    "q": 11,
+    "question": "For each commodity, which single part had the worst PPM over the last 12 months of the window? The window ends August 2026.",
+    "sql": "SELECT DISTINCT ON (s.commodity)\n    s.commodity,\n    p.part_id,\n    p.part_name,\n    COALESCE(d.total_defects, 0) * 1000000.0 / v.total_volume AS ppm\nFROM spike.parts p\nJOIN spike.suppliers s ON p.supplier_id = s.supplier_id\nJOIN (\n    SELECT part_id, SUM(units_produced) AS total_volume\n    FROM spike.production_volume\n    WHERE month >= '2025-09-01' AND month < '2026-09-01'\n    GROUP BY part_id\n) v ON p.part_id = v.part_id\nLEFT JOIN (\n    SELECT part_id, SUM(quantity) AS total_defects\n    FROM spike.defects\n    WHERE detected_date >= '2025-09-01' AND detected_date < '2026-09-01'\n    GROUP BY part_id\n) d ON p.part_id = d.part_id\nORDER BY s.commodity, COALESCE(d.total_defects, 0) * 1000000.0 / v.total_volume DESC;",
+    "rows": [
+      [
+        "Fasteners",
+        "PN-1026",
+        "Retainer Clip Mk2",
+        "193.8787535496918848"
+      ],
+      [
+        "Sealants",
+        "PN-1034",
+        "Door Seam Sealer Mk2",
+        "417.6612628859563475"
+      ],
+      [
+        "Stampings",
+        "PN-1042",
+        "Roof Rail Mk2",
+        "906.5553754241821605"
+      ],
+      [
+        "Weld Assemblies",
+        "PN-1017",
+        "Underbody Assy",
+        "973.1202560387518111"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 12,
+    "question": "Which parts had a defect PPM above their own supplier's average PPM over the full window?",
+    "sql": "WITH defect_totals AS (\n    SELECT part_id, SUM(quantity) AS total_defects\n    FROM spike.defects\n    GROUP BY part_id\n),\nproduction_totals AS (\n    SELECT part_id, SUM(units_produced) AS total_units\n    FROM spike.production_volume\n    GROUP BY part_id\n),\npart_ppms AS (\n    SELECT \n        p.part_id,\n        p.part_name,\n        p.supplier_id,\n        (COALESCE(d.total_defects, 0)::numeric / pt.total_units) * 1000000 AS ppm\n    FROM spike.parts p\n    JOIN production_totals pt ON p.part_id = pt.part_id\n    LEFT JOIN defect_totals d ON p.part_id = d.part_id\n),\nsupplier_stats AS (\n    SELECT \n        part_id,\n        part_name,\n        ppm,\n        AVG(ppm) OVER (PARTITION BY supplier_id) AS avg_supplier_ppm\n    FROM part_ppms\n)\nSELECT part_id, part_name\nFROM supplier_stats\nWHERE ppm > avg_supplier_ppm;",
+    "rows": [
+      [
+        "PN-1002",
+        "Rocker Panel"
+      ],
+      [
+        "PN-1004",
+        "Rocker Panel Mk2"
+      ],
+      [
+        "PN-1005",
+        "Floor Pan"
+      ],
+      [
+        "PN-1010",
+        "Floor Pan"
+      ],
+      [
+        "PN-1011",
+        "Rocker Panel"
+      ],
+      [
+        "PN-1015",
+        "Front Apron Assy"
+      ],
+      [
+        "PN-1016",
+        "Body Side Assy Mk2"
+      ],
+      [
+        "PN-1017",
+        "Underbody Assy"
+      ],
+      [
+        "PN-1020",
+        "Body Side Assy"
+      ],
+      [
+        "PN-1025",
+        "Bracket Stud"
+      ],
+      [
+        "PN-1026",
+        "Retainer Clip Mk2"
+      ],
+      [
+        "PN-1028",
+        "Latch Plate"
+      ],
+      [
+        "PN-1030",
+        "Door Striker"
+      ],
+      [
+        "PN-1034",
+        "Door Seam Sealer Mk2"
+      ],
+      [
+        "PN-1036",
+        "Seam Sealer Bead"
+      ],
+      [
+        "PN-1039",
+        "Rocker Panel"
+      ],
+      [
+        "PN-1042",
+        "Roof Rail Mk2"
+      ],
+      [
+        "PN-1047",
+        "Front Apron Assy"
+      ],
+      [
+        "PN-1048",
+        "Cowl Assy"
+      ],
+      [
+        "PN-1049",
+        "Underbody Assy"
+      ]
+    ],
+    "error": null
+  }
+]
