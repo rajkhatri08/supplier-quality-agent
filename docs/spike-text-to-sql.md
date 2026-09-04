@@ -234,6 +234,52 @@ for text-to-SQL too.
 
 ## Tier 2 questions
 
+### Tier 2a — well-posed, frozen before generation
+
+Q11  For each commodity, which single part had the worst PPM over the
+     last 12 months of the window?
+     Tests: ranking within groups. Needs a window function or a
+     correlated subquery — a plain ORDER BY returns one part overall,
+     not one per commodity, and still returns rows.
+
+Q12  Which parts had a defect PPM above their own supplier's average
+     PPM over the full window?
+     Tests: a baseline that changes per row. Comparing against the
+     global average instead returns a plausible, different set.
+
+Q13  Which suppliers' PPM was worse in the last 12 months than in the
+     first 12 months, and by how much?
+     Tests: two windows in one query. A query that computes only one
+     window still returns suppliers and numbers.
+
+Q14  Ranking suppliers by Critical defects only, how does the order
+     differ from ranking them by all defects?
+     Tests: two rankings side by side, severity filter on one but not
+     the other. Answering only half looks complete.
+
+Q15  For each vehicle system, what share of its defect units came from
+     Critical-severity codes?
+     Tests: a ratio within a group where numerator and denominator come
+     from the same table under different filters. Filtering both gives
+     100% everywhere — wrong, and obviously wrong only if you look.
+
+Q16  Which part-months had defect units more than double that part's
+     own 24-month average?
+     Tests: per-part baseline combined with a row-level comparison.
+     Using a global average returns a much larger, plausible set.
+
+Q17  Among suppliers with more than 4 parts, which had the lowest PPM
+     in the final 6 months?
+     Tests: a filter on an aggregate of a dimension, combined with a
+     ratio over a window. Filtering on parts before aggregating gives
+     a different answer than filtering after.
+
+Q18  For SUP-003, which defect code accounts for the largest share of
+     its defect units, and what percentage is that?
+     Tests: a share-of-total within a filtered subset. The denominator
+     must be SUP-003's total, not the whole dataset — using the global
+     total gives a small, plausible percentage.
+
 ### Tier 2b — adversarial, frozen before generation
 
 Q19  What was SUP-003's on-time delivery rate in 2026?
@@ -267,9 +313,9 @@ prompt says "return only the SQL query", which forces the model to produce SQL
 even when the honest answer is that it cannot. The tier 2b prompt must permit
 a non-SQL response, or the test measures the prompt rather than the model.
 
-### Tier 2a — well-posed
+## Expected answers — tier 2
 
-_To be written._
+_To be computed by hand before the tier 2 run._
 
 ## Results
 
