@@ -1,0 +1,155 @@
+[
+  {
+    "q": 1,
+    "question": "How many defect events were recorded against SUP-003 parts in 2026?",
+    "sql": "SELECT COUNT(*)\nFROM spike.defects d\nJOIN spike.parts p ON d.part_id = p.part_id\nWHERE p.supplier_id = 'SUP-003'\n  AND d.detected_date >= '2026-01-01' \n  AND d.detected_date <= '2026-12-31'",
+    "rows": [
+      [
+        295
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 2,
+    "question": "Which vehicle system has the most defect events across the whole window?",
+    "sql": "SELECT p.vehicle_system\nFROM spike.parts p\nJOIN spike.defects d ON p.part_id = d.part_id\nGROUP BY p.vehicle_system\nORDER BY COUNT(*) DESC\nLIMIT 1;",
+    "rows": [
+      [
+        "Side Panel"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 3,
+    "question": "What was the total production volume for Weld Assemblies suppliers in the last 12 months of the window? The window ends August 2026.",
+    "sql": "SELECT SUM(pv.units_produced)\nFROM spike.production_volume pv\nJOIN spike.parts p ON pv.part_id = p.part_id\nJOIN spike.suppliers s ON p.supplier_id = s.supplier_id\nWHERE s.commodity = 'Weld Assemblies'\n  AND pv.month >= '2025-09-01'\n  AND pv.month <= '2026-08-31'",
+    "rows": [
+      [
+        2144194
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 4,
+    "question": "Which defect code appears most often on parts supplied by SUP-009?",
+    "sql": "SELECT d.defect_code\nFROM spike.defects d\nJOIN spike.parts p ON d.part_id = p.part_id\nWHERE p.supplier_id = 'SUP-009'\nGROUP BY d.defect_code\nORDER BY COUNT(*) DESC\nLIMIT 1",
+    "rows": [
+      [
+        "D-STP-01"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 5,
+    "question": "What was SUP-003's defect PPM in August 2026?",
+    "sql": "WITH total_defects AS (\n    SELECT COALESCE(SUM(d.quantity), 0) AS defects\n    FROM spike.defects d\n    JOIN spike.parts p ON d.part_id = p.part_id\n    WHERE p.supplier_id = 'SUP-003'\n      AND d.detected_date >= '2026-08-01'\n      AND d.detected_date < '2026-09-01'\n),\ntotal_production AS (\n    SELECT SUM(pv.units_produced) AS production\n    FROM spike.production_volume pv\n    JOIN spike.parts p ON pv.part_id = p.part_id\n    WHERE p.supplier_id = 'SUP-003'\n      AND pv.month >= '2026-08-01'\n      AND pv.month < '2026-09-01'\n)\nSELECT (total_defects.defects::NUMERIC / total_production.production::NUMERIC) * 1000000 AS defect_ppm\nFROM total_defects, total_production;",
+    "rows": [
+      [
+        "1369.51037429851207000000"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 6,
+    "question": "For each commodity, what is the average monthly PPM over the full 24-month window?",
+    "sql": "WITH monthly_prod AS (\n    SELECT \n        s.commodity,\n        pv.month,\n        SUM(pv.units_produced) AS total_produced\n    FROM spike.production_volume pv\n    JOIN spike.parts p ON pv.part_id = p.part_id\n    JOIN spike.suppliers s ON p.supplier_id = s.supplier_id\n    GROUP BY s.commodity, pv.month\n),\nmonthly_def AS (\n    SELECT \n        s.commodity,\n        DATE_TRUNC('month', d.detected_date)::date AS month,\n        SUM(d.quantity) AS total_defects\n    FROM spike.defects d\n    JOIN spike.parts p ON d.part_id = p.part_id\n    JOIN spike.suppliers s ON p.supplier_id = s.supplier_id\n    GROUP BY s.commodity, DATE_TRUNC('month', d.detected_date)::date\n)\nSELECT \n    p.commodity,\n    AVG((COALESCE(d.total_defects, 0)::NUMERIC / p.total_produced) * 1000000) AS avg_monthly_ppm\nFROM monthly_prod p\nLEFT JOIN monthly_def d ON p.commodity = d.commodity AND p.month = d.month\nGROUP BY p.commodity;",
+    "rows": [
+      [
+        "Weld Assemblies",
+        "595.06798674586527583333"
+      ],
+      [
+        "Stampings",
+        "519.25105191803409958333"
+      ],
+      [
+        "Fasteners",
+        "184.60318032595387083333"
+      ],
+      [
+        "Sealants",
+        "353.28239204392266083333"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 7,
+    "question": "Which part had the largest single-month increase in defect units compared with its own previous month?",
+    "sql": "SELECT part_id\nFROM (\n    SELECT \n        part_id,\n        SUM(quantity) - LAG(SUM(quantity)) OVER (PARTITION BY part_id ORDER BY DATE_TRUNC('month', detected_date)) AS defect_increase\n    FROM spike.defects\n    GROUP BY part_id, DATE_TRUNC('month', detected_date)\n) sub\nWHERE defect_increase IS NOT NULL\nORDER BY defect_increase DESC\nLIMIT 1;",
+    "rows": [
+      [
+        "PN-1042"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 8,
+    "question": "Which suppliers had a higher total defect count but a lower defect PPM than SUP-003 over the last 12 months? The window ends August 2026.",
+    "sql": "WITH volume_by_supplier AS (\n    SELECT \n        p.supplier_id,\n        SUM(pv.units_produced) AS total_units\n    FROM spike.parts p\n    JOIN spike.production_volume pv ON p.part_id = pv.part_id\n    WHERE pv.month >= '2025-09-01' AND pv.month <= '2026-08-31'\n    GROUP BY p.supplier_id\n),\ndefects_by_supplier AS (\n    SELECT \n        p.supplier_id,\n        SUM(d.quantity) AS total_defects\n    FROM spike.parts p\n    JOIN spike.defects d ON p.part_id = d.part_id\n    WHERE d.detected_date >= '2025-09-01' AND d.detected_date <= '2026-08-31'\n    GROUP BY p.supplier_id\n),\nsupplier_stats AS (\n    SELECT \n        s.supplier_id,\n        s.supplier_name,\n        COALESCE(d.total_defects, 0) AS total_defects,\n        COALESCE(v.total_units, 0) AS total_units,\n        (COALESCE(d.total_defects, 0)::NUMERIC / NULLIF(v.total_units, 0)) * 1000000 AS ppm\n    FROM spike.suppliers s\n    LEFT JOIN volume_by_supplier v ON s.supplier_id = v.supplier_id\n    LEFT JOIN defects_by_supplier d ON s.supplier_id = d.supplier_id\n)\nSELECT \n    s.supplier_id,\n    s.supplier_name\nFROM supplier_stats s\nCROSS JOIN supplier_stats sup3\nWHERE sup3.supplier_id = 'SUP-003'\n  AND s.total_defects > sup3.total_defects\n  AND s.ppm < sup3.ppm",
+    "rows": [
+      [
+        "SUP-009",
+        "Meridian Pressings"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 9,
+    "question": "For Critical-severity defects only, which supplier had the worst PPM in the final 6 months of the window, and what was it? The window ends August 2026.",
+    "sql": "SELECT \n    s.supplier_id,\n    s.supplier_name,\n    (COALESCE(cd.total_defects, 0) * 1000000.0 / pv.total_produced) AS ppm\nFROM spike.suppliers s\nJOIN (\n    SELECT p.supplier_id, SUM(pv.units_produced) AS total_produced\n    FROM spike.production_volume pv\n    JOIN spike.parts p ON pv.part_id = p.part_id\n    WHERE pv.month >= '2026-03-01' AND pv.month <= '2026-08-31'\n    GROUP BY p.supplier_id\n) pv ON s.supplier_id = pv.supplier_id\nLEFT JOIN (\n    SELECT p.supplier_id, SUM(d.quantity) AS total_defects\n    FROM spike.defects d\n    JOIN spike.defect_codes dc ON d.defect_code = dc.defect_code\n    JOIN spike.parts p ON d.part_id = p.part_id\n    WHERE dc.severity = 'Critical'\n      AND d.detected_date >= '2026-03-01' AND d.detected_date <= '2026-08-31'\n    GROUP BY p.supplier_id\n) cd ON s.supplier_id = cd.supplier_id\nORDER BY ppm DESC\nLIMIT 1;",
+    "rows": [
+      [
+        "SUP-003",
+        "Unified Weld Assemblies",
+        "701.0448264239973037"
+      ]
+    ],
+    "error": null
+  },
+  {
+    "q": 10,
+    "question": "Which defect codes were never recorded against any SUP-005 part?",
+    "sql": "SELECT defect_code\nFROM spike.defect_codes\nWHERE defect_code NOT IN (\n    SELECT d.defect_code\n    FROM spike.defects d\n    JOIN spike.parts p ON d.part_id = p.part_id\n    WHERE p.supplier_id = 'SUP-005'\n)",
+    "rows": [
+      [
+        "D-WLD-01"
+      ],
+      [
+        "D-WLD-02"
+      ],
+      [
+        "D-WLD-03"
+      ],
+      [
+        "D-WLD-04"
+      ],
+      [
+        "D-STP-01"
+      ],
+      [
+        "D-STP-02"
+      ],
+      [
+        "D-STP-03"
+      ],
+      [
+        "D-STP-04"
+      ],
+      [
+        "D-SLR-01"
+      ],
+      [
+        "D-SLR-02"
+      ]
+    ],
+    "error": null
+  }
+]
