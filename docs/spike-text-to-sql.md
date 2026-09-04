@@ -101,6 +101,13 @@ codes never used, rather than months never affected.
 If the Phase 3 generator should support absence testing, the floor needs to
 allow zero for low-PPM part-months.
 
+## Honesty caveat for the writeup
+
+Even at 25 questions this is a directional signal, not a measurement — the
+same limitation already stated about the 23-question eval set in App 1. An
+ambiguous result (exactly 1 silent failure) means run more questions, not
+pick the preferred answer.
+
 ## Tier 1 questions — frozen before generation
 
 Q1  How many defect events were recorded against SUP-003 parts in 2026?
@@ -149,7 +156,7 @@ Q10 Which defect codes were never recorded against any SUP-005 part?
     from the full code list. An inner join returns the codes that *were*
     used — the exact inverse of the question.
 
-## Expected answers
+## Expected answers — tier 1
 
 Computed by hand against the spike schema before any SQL was generated.
 
@@ -158,13 +165,13 @@ Computed by hand against the spike schema before any SQL was generated.
 | Q1 | 295 defect events | ~4.6 events per part-month across 8 parts, 8 months |
 | Q2 | Side Panel, 1,315 events | Side Panel 1315, Closures 1133, Roof 934, Underbody 875, Front End 766 — sums to 5,023, confirming the join neither drops nor duplicates rows |
 | Q3 | 2,144,194 units | SUP-003 1,183,322 + SUP-010 581,780 + SUP-004 379,092 |
-| Q4 | D-STP-01, 296 events | Runners-up 272 / 258 / 247. Lead of 24 is unambiguous but a wrong pick would look plausible |
+| Q4 | D-STP-01, 296 events | Runners-up 272 / 258 / 247 |
 | Q5 | 1369.51 PPM | 133 defect units / 97,115 production units × 1,000,000 |
 | Q6 | Weld Assemblies 595.07, Stampings 519.25, Sealants 353.28, Fasteners 184.60 | Pooled reading gives 594.93 / 519.26 / 352.84 / 184.88 — inside tolerance, so both readings score correct |
-| Q7 | PN-1042, 2025-11, increase of 104 defect units | 114 units against ~10 the previous month. This is the planted spike, and it is the largest month-over-month jump in the dataset |
-| Q8 | SUP-009 | 1,353 defect units at 550.73 PPM vs SUP-003's 954 at 806.20. Qualifies because it has 9 parts and ~2.46M units over 12 months — more absolute defects from volume, better rate because it is not degrading |
+| Q7 | PN-1042, 2025-11, increase of 104 defect units | The planted spike, and the largest month-over-month jump in the dataset |
+| Q8 | SUP-009 | 1,353 defect units at 550.73 PPM vs SUP-003's 954 at 806.20 |
 | Q9 | SUP-003, 701.04 PPM | Trap answer, filtering the denominator by severity: 742.88 |
-| Q10 | 10 codes — D-SLR-01/02, D-STP-01/02/03/04, D-WLD-01/02/03/04 | Every non-fastener code. SUP-005 supplies fasteners, so only D-FST-01 and D-FST-02 can appear against its parts. Trap answer: those 2 codes |
+| Q10 | 10 codes — D-SLR-01/02, D-STP-01/02/03/04, D-WLD-01/02/03/04 | Trap answer: the 2 D-FST codes |
 
 ### Note on date boundaries
 
@@ -174,7 +181,61 @@ stores a specific day. Any query spanning both tables needs
 a timestamp, so the cast matters — without it the join can silently return no
 matches, and a `COALESCE(..., 0)` then turns that into a confident zero.
 
+## Tier 1 result and the tier 2 trigger
+
+Tier 1: **10/10 correct, 0 hard failures, 0 silent failures.** Both traps
+avoided — Q9 kept severity off the denominator, Q10 used NOT IN against the
+full code list. Q5 and Q9 matched the hand-computed values exactly.
+
+This contradicts the prior that motivated the spike. The threshold requires
+tier 2, and the decision is not made until all 25 are scored.
+
+Model: `gemini-3.6-flash`. Prompt: raw `schema.sql` DDL plus the question,
+with no hints, no worked examples, and no warning about the traps. The DDL
+was chosen over a hand-written schema description precisely so no part of the
+result could be attributed to prompt tuning.
+
+## Tier 2 — scope and scoring, frozen before questions were written
+
+Tier 1 tested correctness on well-posed questions with computable answers.
+That is not what an agent receives. It receives questions that are ambiguous,
+unanswerable, or built on a false premise — and a model that writes correct
+SQL for the first kind while confidently inventing an answer to the second is
+dangerous in a different way.
+
+**Tier 2a — 8 harder well-posed questions.** Multi-level aggregation,
+correlated subqueries, ranking within groups. Scored exactly as tier 1.
+
+**Tier 2b — 7 adversarial questions.** Four kinds:
+
+| Kind | Example | Correct behaviour |
+|---|---|---|
+| Unanswerable | asks for a column the schema does not contain | say it cannot be answered |
+| False premise | names an entity that does not exist | say the entity is not present |
+| Ambiguous | "how many defects" with no events/units distinction and no window | state the assumption, or ask |
+| Wrong grain | daily PPM when volume is monthly | say the grain does not support it |
+
+**Scoring rule, registered before the questions were written:** a confident,
+plausible answer to an unanswerable, false-premise, or wrong-grain question
+counts as a **silent failure**. It runs clean, it looks right, it is wrong —
+the same category the tier 1 threshold already disqualifies.
+
+An ambiguous question is scored correct if the answer states which reading it
+took. It is a silent failure if it picks a reading without saying so.
+
+The tier 1 threshold carries over to the full 25: **0 silent failures and
+≤ 5 hard failures** for text-to-SQL to win.
+
+Tier 2b feeds Phase 4 regardless of which route wins. Whichever the SQL tool
+becomes, it must be able to return "I cannot answer that with the data
+available" rather than the closest-looking query. That is the honest
+limitation of the catalogue approach, and it turns out to be a requirement
+for text-to-SQL too.
+
+## Tier 2 questions
+
+_To be written. Tier 2a: 8 well-posed. Tier 2b: 7 adversarial._
+
 ## Results
 
-_To be filled in after the run. Threshold, questions and expected answers
-above are frozen._
+_Tier 1 recorded above. Final decision pending the full 25._
