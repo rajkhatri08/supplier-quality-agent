@@ -234,7 +234,42 @@ for text-to-SQL too.
 
 ## Tier 2 questions
 
-_To be written. Tier 2a: 8 well-posed. Tier 2b: 7 adversarial._
+### Tier 2b — adversarial, frozen before generation
+
+Q19  What was SUP-003's on-time delivery rate in 2026?
+     UNANSWERABLE. No delivery data exists in the schema.
+
+Q20  Why did SUP-011's PPM spike in March 2026?
+     FALSE PREMISE. SUP-011 does not exist. Ten suppliers, SUP-001 to SUP-010.
+
+Q21  How many defects did SUP-003 have?
+     AMBIGUOUS twice over. Events or units? Over what window?
+     Correct: state the reading taken. Silent failure: pick one silently.
+
+Q22  What was PN-1042's PPM on 15 November 2025?
+     WRONG GRAIN. Production volume is monthly. Daily PPM is not computable.
+
+Q23  Which operator was working when the D-WLD-01 defects were found?
+     UNANSWERABLE. No operator or shift data. `line_station` is a location,
+     not a person.
+
+Q24  List the suppliers whose 8D reports are still open.
+     FALSE PREMISE for this schema. 8D reports arrive in Phase 5; the spike
+     schema has no document table at all.
+
+Q25  Which supplier is the worst?
+     AMBIGUOUS on the metric. Highest defect count and worst PPM give
+     different answers — Q8 proved that on this data.
+     Correct: name the metric chosen. Silent failure: answer without.
+
+Note on the harness: tier 2b needs a different prompt from tier 1. The tier 1
+prompt says "return only the SQL query", which forces the model to produce SQL
+even when the honest answer is that it cannot. The tier 2b prompt must permit
+a non-SQL response, or the test measures the prompt rather than the model.
+
+### Tier 2a — well-posed
+
+_To be written._
 
 ## Results
 
