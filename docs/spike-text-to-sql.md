@@ -76,13 +76,19 @@ model is likely to produce:
 | Q9 | Yes | Filtering the denominator by severity gives 742.88 vs the correct 701.04 — a 6% inflation, well outside tolerance |
 | Q10 | Yes | An inner join returns the 2 codes that *were* used instead of the 10 that were not — confident, non-empty, and the opposite of what was asked |
 
-## Finding: absence is not representable in this dataset
+## Findings about the dataset itself
+
+Writing 18 expected answers by hand surfaced three structural properties of
+the synthetic data that were not visible from reading the generator. Each was
+found by asking a question the data could not properly answer.
+
+### 1. Absence is not representable
 
 The original Q10 asked which parts recorded zero defect events in a month
 with production above 20,000 units. The correct answer is empty — but so is
 the answer from an inner join, so the question could not discriminate.
 
-Root cause is in the generator, not the query:
+Root cause is in the generator:
 
 ```python
 n_events = rng.randint(max(1, int(expected * 0.4)), max(2, int(expected * 0.9)))
@@ -92,14 +98,37 @@ The `max(1, ...)` floor guarantees at least one defect event for every
 part-month. Confirmed by measurement: 703 part-months exceed 20,000 units,
 and **zero** part-months anywhere in the dataset are defect-free.
 
-So no question of the form "which X had no Y in period Z" is answerable on
-this data. That is a limitation of the synthetic data, not of text-to-SQL,
-and it would have silently invalidated the question had it not been checked.
-Q10 was replaced with an absence question the data can answer — one about
-codes never used, rather than months never affected.
+No question of the form "which X had no Y in period Z" is answerable on this
+data. Q10 was replaced with an absence question the data can answer — codes
+never used, rather than months never affected.
 
-If the Phase 3 generator should support absence testing, the floor needs to
-allow zero for low-PPM part-months.
+### 2. No sealant defect code is Critical
+
+D-SLR-01 is Major, D-SLR-02 is Minor. Every other commodity has at least one
+Critical code; sealants have none. So SUP-007 and SUP-008 can never record a
+Critical defect, and **any Critical-severity question silently excludes an
+entire commodity**.
+
+Surfaced by Q14, where both sealant suppliers returned 0.00 Critical PPM and
+tied at rank 9. Q15's low Roof share (15.47% vs 46.46% for Front End) is
+downstream of the same gap — roof ditch sealer contributes defect units that
+can never be Critical.
+
+### 3. A 2x-of-own-average threshold is inside normal variation
+
+Q16 found 36 of 1,200 part-months exceeding twice that part's own 24-month
+average. At these count levels — parts averaging 5 to 15 defect units a month
+— ordinary variation clears 2x easily. Only PN-1042's planted spike stands
+clearly outside, at 7.8x against 2-3x for everything else.
+
+An anomaly rule set at 2x on this data would be mostly false positives. Worth
+knowing before any Phase 7 question is phrased in terms of "unusual" months.
+
+### Implication for Phase 3
+
+If the production generator should support absence testing and severity
+questions across all commodities, two changes are needed: allow zero events
+for low-PPM part-months, and give sealants a Critical code.
 
 ## Honesty caveat for the writeup
 
@@ -129,36 +158,29 @@ Q5  What was SUP-003's defect PPM in August 2026?
 
 Q6  For each commodity, what is the average monthly PPM over the full
     24-month window?
-    Tests: two-level aggregation and date alignment between a fact table
-    keyed by month and one keyed by day. Does not discriminate — see above.
+    Tests: two-level aggregation and date alignment. Does not discriminate.
 
 Q7  Which part had the largest single-month increase in defect units
     compared with its own previous month?
-    Tests: window function over a partitioned, ordered series. Also tests
-    NULL ordering — Postgres sorts NULLs first under DESC, so NULLS LAST
-    is required, not optional.
+    Tests: window function over a partitioned, ordered series. Also NULL
+    ordering — Postgres sorts NULLs first under DESC, so NULLS LAST is
+    required, not optional.
 
 Q8  Which suppliers had a higher total defect count but a lower defect
     PPM than SUP-003 over the last 12 months?
-    Tests: both metrics at once, plus comparison against a subquery value.
-    A query answering only one half still returns rows.
     "Defect count" is read as SUM(quantity), i.e. defect units.
 
 Q9  For Critical-severity defects only, which supplier had the worst PPM
     in the final 6 months, and what was it?
-    Tests: the severity filter must apply to the numerator only. Production
-    volume has no severity. Filtering both runs cleanly and inflates PPM.
-    Note: the same supplier wins either way — it is the "and what was it"
-    half that catches the error.
+    Tests: the severity filter must apply to the numerator only. The same
+    supplier wins either way — it is the "and what was it" half that
+    catches the error.
 
 Q10 Which defect codes were never recorded against any SUP-005 part?
-    Tests: absence. Requires NOT EXISTS or LEFT JOIN ... IS NULL, starting
-    from the full code list. An inner join returns the codes that *were*
-    used — the exact inverse of the question.
+    Tests: absence. An inner join returns the codes that *were* used —
+    the exact inverse of the question.
 
 ## Expected answers — tier 1
-
-Computed by hand against the spike schema before any SQL was generated.
 
 | # | Expected answer | Notes |
 |---|---|---|
@@ -261,7 +283,7 @@ Q15  For each vehicle system, what share of its defect units came from
      Critical-severity codes?
      Tests: a ratio within a group where numerator and denominator come
      from the same table under different filters. Filtering both gives
-     100% everywhere — wrong, and obviously wrong only if you look.
+     100% everywhere.
 
 Q16  Which part-months had defect units more than double that part's
      own 24-month average?
@@ -271,14 +293,12 @@ Q16  Which part-months had defect units more than double that part's
 Q17  Among suppliers with more than 4 parts, which had the lowest PPM
      in the final 6 months?
      Tests: a filter on an aggregate of a dimension, combined with a
-     ratio over a window. Filtering on parts before aggregating gives
-     a different answer than filtering after.
+     ratio over a window.
 
 Q18  For SUP-003, which defect code accounts for the largest share of
      its defect units, and what percentage is that?
      Tests: a share-of-total within a filtered subset. The denominator
-     must be SUP-003's total, not the whole dataset — using the global
-     total gives a small, plausible percentage.
+     must be SUP-003's total, not the whole dataset.
 
 ### Tier 2b — adversarial, frozen before generation
 
@@ -313,10 +333,26 @@ prompt says "return only the SQL query", which forces the model to produce SQL
 even when the honest answer is that it cannot. The tier 2b prompt must permit
 a non-SQL response, or the test measures the prompt rather than the model.
 
-## Expected answers — tier 2
+## Expected answers — tier 2a
 
-_To be computed by hand before the tier 2 run._
+Computed by hand before the tier 2 run.
+
+| # | Expected answer | Notes |
+|---|---|---|
+| Q11 | Weld Assemblies PN-1017 973.12 · Stampings PN-1042 906.56 · Sealants PN-1034 417.66 · Fasteners PN-1026 193.88 | PN-1017 is a SUP-003 weld part carrying the electrode trend. PN-1042 is the planted spike part, still worst in its commodity a year later |
+| Q12 | 20 parts of 50, all 10 suppliers represented | PN-1042 has the largest margin over its own supplier average (707.03 vs 548.04). Supplier baselines range from 174 to 661, confirming the partition works |
+| Q13 | 6 suppliers worse: SUP-003 +290.99, SUP-002 +78.20, SUP-008 +24.23, SUP-004 +18.14, SUP-009 +7.99, SUP-001 +1.50 | SUP-003's delta is ~4x the next. The planted trend separates cleanly from background noise |
+| Q14 | 6 of 10 suppliers change rank. Critical-only order: SUP-003, 004, 010, 009, 001, 002, 005, 006, then 007/008 tied at 9 | SUP-009 drops 2 (one Critical stamping code); SUP-004, 005, 006 each rise 2. SUP-007 and SUP-008 are structurally 0.00 — see dataset finding 2 |
+| Q15 | Front End 46.46% · Underbody 40.10% · Closures 35.51% · Side Panel 28.83% · Roof 15.47% | Roof is suppressed by the missing Critical sealant code. Front End is highest because cowl and front apron are weld parts with 2 of 4 codes Critical |
+| Q16 | 36 part-months of 1,200 | PN-1042 2025-11 at 114 vs a 14.63 average — 7.8x, against 2-3x for everything else. SUP-003 weld parts (PN-1015 to PN-1019) cluster in 2026 from the trend. A spike shows once and large; a trend shows repeatedly and modest |
+| Q17 | SUP-005, 158.41 PPM | Qualifying set is exactly the 5 suppliers with >4 parts: SUP-001, 003, 005, 007, 009. Runners-up 334.08 / 476.31 / 509.20 / 1083.59 — no near-tie |
+| Q18 | D-WLD-01, 50.73% | Shares sum to 100%, confirming the denominator is SUP-003's own total. Matches the generator's 3.0-vs-1.0 weighting (3/6). Note: 50.73% is D-WLD-01's share of SUP-003's defects; 86.9% is SUP-003's share of D-WLD-01's occurrences — different ratios, easy to confuse |
+
+### Expected answers — tier 2b
+
+Not numeric. Each is scored on whether the model refuses, flags the false
+premise, or states its assumption — per the scoring rule above.
 
 ## Results
 
-_Tier 1 recorded above. Final decision pending the full 25._
+_Tier 1 recorded above. Tier 2 pending. Final decision pending all 25._
