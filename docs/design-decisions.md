@@ -74,3 +74,92 @@ different correct answers. That distinction is eval material for Phase 6.
 So "how many defects" has two valid readings — 5,023 events, more units.
 Any question using that phrasing is ambiguous by construction, and the
 routing eval set must be explicit about which is meant.
+
+## Phase 1 — SQL tool decision
+
+**Decision: query catalogue.** Full reasoning in `spike-text-to-sql.md`.
+
+Text-to-SQL passed the pre-registered reliability threshold 25/25 with zero
+silent failures, contradicting the prior that motivated the spike. The
+catalogue was chosen anyway, because one question passed by an unsound method
+that happened to give the right answer on this data — meaning the detection
+was not airtight and the true silent-failure rate could not be bounded.
+
+Carried forward: the agent selects a query and extracts parameters; pydantic
+validates before anything reaches the database; the tool must be able to
+decline rather than return the nearest match.
+
+## Phase 2 — the veto decision
+
+App 1's governance principle was a veto, not a weight: an unapproved source at
+distance 0.720, the best semantic match in the whole set, still classified
+BRONZE. The question for App 2 was whether that principle transfers.
+
+**It transfers, but not to the conditions it first appeared to fit.**
+
+### Closed 8D reports — no veto
+
+App 1's veto worked because approval status is a property of the *document*.
+An unapproved SOP is wrong to cite regardless of what was asked.
+
+A closed 8D is not like that. Its validity depends on the question. It is the
+wrong answer to "what is failing now" and exactly the right answer to "has
+this happened before." A veto would block correct answers half the time.
+
+That fails the one-filtering-rule principle carried from App 1: a rule that is
+right for one question shape and wrong for another is not one rule.
+
+**Instead:** closed 8Ds are retrievable, ranked below open ones, and their
+status is shown in the trace. The agent states that a source is a closed 8D
+and when it closed. The reader judges.
+
+### Stale PPM data — no veto, and not built
+
+The dataset runs to August 2026 with no gaps, so staleness does not exist in
+it. A recency veto would be untestable — the same problem as the absence
+question in Phase 1, where a rule could not be demonstrated because the data
+could not express the condition.
+
+Building an untestable rule means being unable to show it works. Not built.
+
+### What does veto: severity combined with recency
+
+Neither severity nor recency alone, but the pair. For a question about current
+state, a Critical defect within the last 90 days is admissible; a Minor defect
+from 18 months ago is not — regardless of how well it matches.
+
+This is testable on the existing data, it is a real quality-engineering rule,
+and it preserves governance-as-veto across both apps without forcing a fit
+where none exists.
+
+### Schema consequence
+
+- 8D status: indexed and filterable, never a hard filter
+- Severity: already a first-class dimension in `defect_codes`
+- Recency: derived from `detected_date`, already present
+
+The decision constrains behaviour, not structure. No new columns are required.
+
+### The connecting idea across both apps
+
+App 1: an approved-but-less-similar source outranks an unapproved better match.
+App 2: a recent Critical defect outranks an older Minor one, whatever the
+semantic match says.
+
+Both are the same claim — that a governance property can override a relevance
+score. What differs is which property, and App 2's had to be chosen rather
+than inherited. The first two candidates were rejected for stated reasons:
+one because it was question-dependent, one because it was untestable.
+
+## Carried into Phase 3
+
+Two generator changes the Phase 1 spike showed are needed:
+
+- allow zero defect events for low-PPM part-months, so absence questions
+  become answerable
+- give sealants at least one Critical defect code, so severity questions do
+  not silently exclude an entire commodity
+
+Also considered for the real schema: `line_station` following the actual BIW
+line sequence — docking, underbody, main line, slat line, quality check —
+rather than the abstract station labels used in the spike data.
