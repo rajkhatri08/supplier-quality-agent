@@ -1,0 +1,10 @@
+# Local development only. Never deployed.
+#
+# The data generator, contract validation and verification scripts run on a
+# developer machine, not in the API. Keeping them out of requirements.txt
+# saves ~106 MB on the deployed slug.
+
+-r requirements.txt
+
+pandas==3.0.5
+numpy==2.5.2

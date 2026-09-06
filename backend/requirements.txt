@@ -1,7 +1,17 @@
-pandas==3.0.5
-numpy==2.5.2
+# Deployed backend only. Everything here ships to Render.
+#
+# Kept deliberately minimal: pandas, the data generator's dependencies and
+# the verification scripts live in requirements-dev.txt because they run
+# locally and never in the API.
+#
+# Known cost: chromadb pulls onnxruntime (80 MB), kubernetes (81 MB) and
+# grpc (39 MB) as transitive dependencies. None of the three is used —
+# embeddings come from Gemini, and Chroma runs in-process rather than
+# distributed — but they cannot be declined. Measured, accepted, recorded.
+# See docs/design-decisions.md.
+
 SQLAlchemy==2.0.52
 psycopg[binary]==3.3.5
 python-dotenv==1.2.3
 google-genai==2.22.0
-
+chromadb==1.5.9
