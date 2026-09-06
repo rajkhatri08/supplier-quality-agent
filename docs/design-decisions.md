@@ -1,34 +1,51 @@
 # Design decisions
 
-## Planted patterns (spike answer key)
+## Planted patterns (answer key)
 
-These three patterns are deliberately built into the synthetic data so the
-Phase 1 spike questions have a known correct answer. Without them the data is
+These patterns are deliberately built into the synthetic data so that
+questions about it have a known correct answer. Without them the data is
 noise and "which supplier is worst" has no defensible ground truth.
 
-All figures below are **measured from the generated data**, not intended
-targets. Where the two differed, the doc was corrected to match the data.
+All figures below are **measured from the production data** (public schema),
+not intended targets. They differ from the Phase 0 spike data because
+low-runner parts changed the volume distribution.
 
 **Trend** — SUP-003, weld assemblies.
-PPM climbs across the final 5 months of the 24-month window, roughly 670 to
-1,370 against a 400-720 baseline. Models welding electrodes wearing down
-between replacement intervals: gradual degradation, not a single event.
-The first multiplier month is lost in baseline noise, so a 6-month window is
-answerable but a 3-month window would not be.
+PPM climbs across the final 6 months: 799 → 960 → 1,080 → 1,514 → 1,512 →
+1,668, against a baseline of roughly 390-870. Models welding electrode tip
+wear beyond the dressing interval — gradual degradation, not a single event.
+Note that one baseline month (June 2025, 872 PPM) exceeds three of the six
+trend months, so a single-month comparison cannot distinguish trend from
+noise. Only the sustained climb does.
 
 **Spike** — PN-1042, Roof Rail Mk2 (roof stamping, supplied by SUP-009).
-November 2025: 49 defect events / 114 defect units, against a background of
+November 2025: 53 defect events / 120 defect units, against a background of
 2-7 events per month. Models a single bad steel coil entering the line.
+Documented in 8D-2025-007.
 
 **Concentration** — D-WLD-01, weld porosity, Critical.
-86.9% of occurrences fall on SUP-003's parts (318 of 366). Emerges from
+87.4% of occurrences fall on SUP-003's parts (340 of 389). Emerges from
 weighted selection rather than a hard rule, so the figure is measured rather
 than asserted. Deliberately the same supplier as the trend, so "worst weld
 porosity" and "who is trending worse" point at the same place.
 
+**Low runners** — PN-1006, PN-1023, PN-1031, PN-1044, PN-1050.
+400-1,400 units per month against 9,000-80,000 for everything else. Four of
+the five record zero defects across all 24 months; PN-1050 records one. This
+is what makes absence representable: 119 of 1,200 part-months are
+defect-free. It also creates a real trap — a low-runner with 3 defects on 800
+units computes to 3,750 PPM and looks like the worst part in the plant, when
+three defects on 800 units is statistical noise.
+
+**8D reports** — 12 total, 4 open. The SUP-003 pair is the important one:
+8D-2025-003 (closed, opened Feb 2025) records weld porosity being fixed;
+8D-2026-011 (open, June 2026) records it recurring, and explicitly references
+the earlier report. That pair makes the Phase 2 veto decision demonstrable and
+gives Phase 6 a question that genuinely needs both routes.
+
 The pattern IDs are coupled to `build_parts`. Editing that function reshuffles
-part assignment and silently invalidates this key. If it moves again, pin the
-patterns to a supplier and part *name* rather than an ID.
+part assignment and silently invalidates this key. Re-measure with
+`backend/db/verify_data.py` after any generator change.
 
 ## Why defect data alone can mislead
 
@@ -60,8 +77,7 @@ immediately, and it undermines the credibility the project depends on.
 ## Volume scaling by commodity
 
 Monthly build volume varies by commodity: fasteners 55-80k, sealants 30-45k,
-stampings 18-26k, weld assemblies 9-14k. Over the last 12 months this gives
-SUP-005 4.78M units against SUP-004's 379k — a 12.6x spread.
+stampings 18-26k, weld assemblies 9-14k, low runners 0.4-1.4k.
 
 This is deliberate. With uniform volumes, PPM and raw defect count always
 agree about who is worst. With this spread they disagree, so "which supplier
@@ -71,7 +87,7 @@ different correct answers. That distinction is eval material for Phase 6.
 ## Defect events vs defect units
 
 `defects` rows are defect *events*; each carries a `quantity` of 1-4 units.
-So "how many defects" has two valid readings — 5,023 events, more units.
+So "how many defects" has two valid readings — 4,729 events, more units.
 Any question using that phrasing is ambiguous by construction, and the
 routing eval set must be explicit about which is meant.
 
@@ -151,15 +167,52 @@ score. What differs is which property, and App 2's had to be chosen rather
 than inherited. The first two candidates were rejected for stated reasons:
 one because it was question-dependent, one because it was untestable.
 
-## Carried into Phase 3
+## Phase 3 — schema, contract and generator
 
-Two generator changes the Phase 1 spike showed are needed:
+### Grain
 
-- allow zero defect events for low-PPM part-months, so absence questions
-  become answerable
-- give sealants at least one Critical defect code, so severity questions do
-  not silently exclude an entire commodity
+- `production_volume` — one part, one month
+- `defects` — one defect event, with `quantity` = units affected
+- `reports_8d` — one 8D report
 
-Also considered for the real schema: `line_station` following the actual BIW
-line sequence — docking, underbody, main line, slat line, quality check —
-rather than the abstract station labels used in the spike data.
+`defects` and `production_volume` are facts; `suppliers`, `parts` and
+`defect_codes` are conformed dimensions. It is a star schema.
+
+### 8D disciplines as separate columns
+
+The eight disciplines are stored as eight columns rather than one text blob.
+Phase 5 chunks on discipline boundaries, and separate columns mean that
+happens without parsing and without a chunker splitting mid-discipline. Same
+insight that took App 1 from 78% to 95% with article-boundary chunking, built
+into the schema instead of handled downstream.
+
+### Data contract
+
+`backend/db/contracts.py` validates every generated row with pydantic before
+anything is written, plus three dataset-level checks that row validation
+cannot see. Nothing reaches the database until all of them pass, so a failure
+leaves it untouched rather than half-seeded.
+
+The contract caught two real problems on its first runs, both silent:
+
+1. **pandas converted `None` to `nan`** in the `part_id` and `closed_date`
+   columns of the 8D reports. No error at build time. Without the contract,
+   `nan` would have been written to Postgres and surfaced later as odd query
+   behaviour.
+2. **Removing the `max(1, ...)` floor did not make absence possible.** Even
+   the lowest-volume part expected around 5 defects a month, so zero was
+   arithmetically unreachable. The check failed, which is what led to
+   low-runner parts — a fix to the cause rather than the symptom.
+
+Both would have been believed fixed without the check. That is the third and
+fourth time in this project that a verification found something reading the
+code would not have.
+
+## Carried into Phase 4
+
+- SQL tool is a fixed catalogue of parameterised queries
+- The agent selects the query and extracts parameters; pydantic validates
+  before anything reaches the database
+- The tool must be able to decline — "not answerable with the queries
+  available" — never the nearest match
+- Ambiguous questions state their interpretation
