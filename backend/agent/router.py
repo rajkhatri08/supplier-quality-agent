@@ -4,11 +4,13 @@ Chooses between the SQL tool, the document tool, both, or neither — and
 states why. The reason is not decoration: Phase 8 shows it, and a routing
 decision nobody can explain fails the depth bar this project is aimed at.
 
-The model sees the query catalogue's descriptions and a summary of what the
-documents contain. It does not see SQL, and it does not write SQL: it names a
-route and, for SQL routes, names a query from the fixed catalogue.
+The model sees the query catalogue's descriptions, a summary of what the
+documents contain, and the list of suppliers that exist. It does not see SQL,
+and it does not write SQL: it names a route and, for SQL routes, names a
+query from the fixed catalogue.
 
 Change log, measured against eval/routing-set.json:
+
   baseline  18/24 (75%), BOTH 1/6.
             Five of six BOTH questions went to DOCS, each with a true reason
             — the explanation does live in the reports. The prompt described
@@ -16,9 +18,17 @@ Change log, measured against eval/routing-set.json:
             equivalent for what a DOCS-only answer would be missing. The
             router was answering "where does the explanation live?" when the
             question is "what would a complete answer need?"
-  change 1  BOTH criterion made bidirectional: check whether a DOCS-only
-            answer would be an explanation with no evidence, as well as
-            whether a SQL-only answer would be a number with no reason.
+
+  change 1  21/24 (87.5%), BOTH 4/6, SQL 7/7, DOCS 6/6.
+            BOTH criterion made bidirectional. Nothing else dropped.
+            But N03 regressed from a quiet miss to a confident one: it routed
+            SUP-011 to BOTH and claimed SQL held PPM data confirming a spike.
+            There is no SUP-011. Asserting evidence for data that does not
+            exist is worse than silently returning nothing.
+
+  change 2  the supplier list is now in the prompt, so a question about a
+            supplier outside it can be declined by the router rather than
+            only by the existence check downstream.
 """
 
 import json
@@ -35,6 +45,7 @@ from google import genai
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.existence import _known_suppliers  # noqa: E402
 from tools.sql_tool import catalogue_manifest  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -65,6 +76,10 @@ TWO SOURCES ARE AVAILABLE.
 
 2. DOCUMENTS — 8D corrective action reports.
 {documents}
+
+The data covers exactly these suppliers: {suppliers}
+A question about any other supplier is NEITHER — the data does not contain
+it, and neither source can say anything about it.
 
 CHOOSE ONE ROUTE:
 
@@ -111,6 +126,19 @@ def _format_catalogue() -> str:
     )
 
 
+def _known_entities() -> str:
+    """The router cannot decline a question about a supplier that does not
+    exist unless it knows which suppliers do. Ten IDs, static, already loaded
+    by the existence check.
+
+    Baseline routed SUP-011 to DOCS — a quiet miss. After change 1 it routed
+    to BOTH and claimed SQL held PPM data confirming a spike for SUP-011.
+    A confident claim about data that does not exist is worse than a silent
+    miss, so the fix belongs in the router rather than only in the tool.
+    """
+    return ", ".join(sorted(_known_suppliers()))
+
+
 def _strip_fences(s: str) -> str:
     s = s.strip()
     s = re.sub(r"^```(?:json)?\s*", "", s)
@@ -123,6 +151,7 @@ def route(question: str) -> RoutingDecision:
     prompt = PROMPT.format(
         catalogue=_format_catalogue(),
         documents=DOCUMENT_SUMMARY,
+        suppliers=_known_entities(),
         question=question,
     )
 
