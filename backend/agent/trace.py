@@ -34,6 +34,13 @@ class ToolTrace:
     open_count: int | None = None   # documents: passages from open reports
     closed_count: int | None = None # documents: passages from closed reports
     citations: list[str] = field(default_factory=list)
+
+    # Result data. The trace carries it rather than the API returning it
+    # separately, because the UI renders provenance and result together and
+    # splitting them would mean reassembling on the frontend.
+    rows: list[dict] = field(default_factory=list)      # SQL result rows
+    passages: list[dict] = field(default_factory=list)  # retrieved passages
+
     failure_kind: str | None = None
     reason: str | None = None
 
