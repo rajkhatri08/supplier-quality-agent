@@ -1,0 +1,103 @@
+{
+  "rule": "docs/routing-rule.md",
+  "committed_before_router": true,
+  "questions": [
+
+    {"id": "R01", "label": "SQL",
+     "question": "What was SUP-003's defect PPM in August 2026?",
+     "why": "A single figure from one supplier and one month. Nothing about it needs explaining."},
+
+    {"id": "R02", "label": "SQL",
+     "question": "Which supplier had the worst defect rate over the last 12 months?",
+     "why": "A ranking. 8D reports exist for several of these suppliers, but extra context is not incompleteness."},
+
+    {"id": "R03", "label": "SQL",
+     "question": "How many defect events were recorded against SUP-009 parts in 2026?",
+     "why": "A count with a filter. The metric is stated, so no ambiguity."},
+
+    {"id": "R04", "label": "SQL",
+     "question": "Which parts recorded no defects at all in August 2026?",
+     "why": "Absence, answerable because low-runner parts exist. The five that return are the low runners."},
+
+    {"id": "R05", "label": "SQL",
+     "question": "For each commodity, which part had the worst PPM in the last 12 months?",
+     "why": "Ranking within groups. Pure computation."},
+
+    {"id": "R06", "label": "SQL",
+     "question": "Which defect code accounts for the largest share of SUP-003's defect units?",
+     "why": "A share-of-total. D-WLD-01 at roughly half, computable without any document."},
+
+    {"id": "R07", "label": "DOCS",
+     "question": "What was the root cause of the roof rail splitting?",
+     "why": "A cause, recorded in 8D-2025-007 D4. SQL can show the spike but cannot say why."},
+
+    {"id": "R08", "label": "DOCS",
+     "question": "What corrective action was taken on the missing fasteners issue?",
+     "why": "An action taken. Lives only in D5 and D6 of 8D-2025-018."},
+
+    {"id": "R09", "label": "DOCS",
+     "question": "Which quality issues are still open?",
+     "why": "Status recorded in the reports. The defects table has no concept of an open investigation."},
+
+    {"id": "R10", "label": "DOCS",
+     "question": "Has weld porosity at SUP-003 happened before, and what was done about it?",
+     "why": "History and prior action. 8D-2025-003, a closed report — the case Phase 2's grouping exists for."},
+
+    {"id": "R11", "label": "DOCS",
+     "question": "Why has the sealer skip problem on door hem flanges not been closed yet?",
+     "why": "An explanation of an open investigation's status. 8D-2026-004 D4 and D7."},
+
+    {"id": "R12", "label": "DOCS",
+     "question": "What is being done to stop weld nugget problems recurring at SUP-004?",
+     "why": "Prevention, D7 of 8D-2026-002. A forward-looking action, not a number."},
+
+    {"id": "BOTH01", "label": "BOTH",
+     "question": "Why is SUP-003's defect rate getting worse?",
+     "why": "Rule case 1 — a number that needs its cause. SQL shows the climb from 899 to 1,586 PPM; only 8D-2026-011 says electrode tip wear after a controller replacement. SQL alone gives a trend with no reason; docs alone give a reason with no evidence it is happening."},
+
+    {"id": "BOTH02", "label": "BOTH",
+     "question": "SUP-001's PPM rose sharply in mid-2026. Should we raise a corrective action request?",
+     "why": "Rule case 2 — a claim needing corroboration, and the sharpest question in the set. SQL shows a real rise (746, 856, 854). 8D-2026-009 says the incoming fixture had drifted out of calibration, supplier CMM data showed the parts conforming, and the recorded PPM overstates the actual rate. SQL alone leads to chasing a supplier who did nothing wrong."},
+
+    {"id": "BOTH03", "label": "BOTH",
+     "question": "Which suppliers with open 8D reports also have a worsening PPM trend?",
+     "why": "Rule case 3 — a comparison across both stores. The open-report list is in documents; the trend is in SQL. Neither half is the answer."},
+
+    {"id": "BOTH04", "label": "BOTH",
+     "question": "Both SUP-001 and SUP-003 show a PPM increase in 2026. Are they the same kind of problem?",
+     "why": "The pairing the dataset was built for. Identical shape in SQL, opposite correct responses. Distinguishing them is impossible from the tables alone."},
+
+    {"id": "BOTH05", "label": "BOTH",
+     "question": "PN-1042 had a bad month in November 2025. Was it fixed?",
+     "why": "SQL shows the spike and shows subsequent months back to normal. 8D-2025-007 says why — a single coil, rejected and returned, with elongation testing added. 'Back to normal' and 'fixed' are different claims; only the document supports the second."},
+
+    {"id": "BOTH06", "label": "BOTH",
+     "question": "Is the weld porosity at SUP-003 the same issue as last year?",
+     "why": "Needs both the current trend and both 8D reports. The open report explicitly says it is a recurrence and differs from the earlier single-lot event — a distinction SQL cannot make."},
+
+    {"id": "N01", "label": "NEITHER",
+     "question": "What is SUP-003's on-time delivery rate?",
+     "why": "No delivery data in the schema and no document mentions it. Measured: closest retrieval distance 0.3851, outside the 0.35 threshold."},
+
+    {"id": "N02", "label": "NEITHER",
+     "question": "Which operator was on shift when the D-WLD-01 defects were found?",
+     "why": "No operator or shift data. line_station is a location, not a person."},
+
+    {"id": "N03", "label": "NEITHER",
+     "question": "Why did SUP-011's PPM spike in March 2026?",
+     "why": "False premise. SUP-011 does not exist — ten suppliers, SUP-001 to SUP-010. The existence check catches this; the Phase 1 spike model missed it and refused for the wrong reason."},
+
+    {"id": "N04", "label": "NEITHER",
+     "question": "What is the unit cost of the parts SUP-005 supplies?",
+     "why": "No cost data anywhere in the schema or the reports."},
+
+    {"id": "A01", "label": "SQL",
+     "question": "How many defects did SUP-003 have?",
+     "why": "Ambiguous on metric — events or units? — and on window. Per the rule, metric ambiguity is not a routing question: it routes to SQL and the agent states its interpretation. Correct routing here is SQL, not BOTH."},
+
+    {"id": "A02", "label": "SQL",
+     "question": "Which part is the worst?",
+     "why": "Ambiguous on metric — worst by PPM or by defect count? Low-runner parts make this sharper, since a part at 800 units can top a PPM ranking meaninglessly. Still SQL: the agent states which metric it used."}
+
+  ]
+}
