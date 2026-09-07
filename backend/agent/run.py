@@ -41,9 +41,20 @@ def _run_sql(query_id: str | None, params: dict) -> ToolTrace:
     )
 
 
-def _run_docs(question: str) -> ToolTrace:
+def _run_docs(question: str, supplier_id: str | None = None) -> ToolTrace:
+    """Retrieve passages, filtered by supplier when the question names one.
+
+    Filtering matters. Without it, "why is SUP-003's defect rate getting
+    worse" returned five of six passages from 8D-2026-009 — the SUP-001
+    gauge-drift report. Semantically similar (a PPM rise, a root cause),
+    wrong supplier. The trace caught it; the passage counts alone looked fine.
+
+    The trade is real: a filter that hides a relevant report from another
+    supplier turns a false positive into a false negative. Accepted because
+    a question naming a supplier is usually about that supplier.
+    """
     with Timer() as t:
-        result = search(question)
+        result = search(question, supplier_id=supplier_id)
 
     if not result.ok:
         return ToolTrace(
@@ -90,7 +101,9 @@ def run(question: str, sql_params: dict | None = None) -> RunTrace:
                 )
 
             if decision.route in ("DOCS", "BOTH"):
-                trace.tools.append(_run_docs(question))
+                trace.tools.append(
+                    _run_docs(question, decision.supplier_id)
+                )
 
             # NEITHER calls no tools. That is the correct behaviour, and the
             # empty tools list is the evidence — not an omission.
@@ -119,7 +132,7 @@ if __name__ == "__main__":
             elif t.ok:
                 print(f"  docs in {t.latency_ms}ms: "
                       f"{t.open_count} open, {t.closed_count} closed")
-                for c in t.citations[:3]:
+                for c in t.citations[:4]:
                     print(f"    {c}")
             else:
                 print(f"  {t.tool} declined: {t.failure_kind} — {t.reason}")
