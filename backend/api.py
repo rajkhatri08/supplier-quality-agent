@@ -8,6 +8,11 @@ the tools are still running.
 
 Two plain endpoints rather than server-sent events: same effect for the user,
 one less protocol to deploy and explain.
+
+No startup hook. An earlier version rebuilt the Chroma index before accepting
+traffic, because Render's filesystem does not survive a deploy or a cold
+start. Moving the vectors into Postgres removed the need — there is nothing
+to rebuild.
 """
 
 import sys
@@ -27,8 +32,9 @@ from tools.sql_tool import catalogue_manifest  # noqa: E402
 app = FastAPI(title="Supplier Quality Risk Agent")
 
 # Vercel serves the frontend from a different origin, so the browser needs
-# permission to call this. Tightened to the deployed origin in Phase 9;
-# wide open here because the frontend runs on localhost during development.
+# permission to call this. Tightened to the deployed origin before the
+# frontend goes live; wide open here because it runs on localhost during
+# development.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

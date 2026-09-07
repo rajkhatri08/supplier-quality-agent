@@ -1,19 +1,22 @@
 # Deployed backend only. Everything here ships to Render.
 #
-# Kept deliberately minimal: pandas, the data generator's dependencies and
-# the verification scripts live in requirements-dev.txt because they run
-# locally and never in the API.
+# chromadb was removed at Phase 9. It pulled onnxruntime (80 MB), kubernetes
+# (81 MB) and grpc (39 MB) as transitive dependencies, none of which were
+# used — embeddings come from Gemini and Chroma ran in-process rather than
+# distributed. A clean install of the deploy requirements measured 476 MB
+# against Render's 512 MB limit.
 #
-# Known cost: chromadb pulls onnxruntime (80 MB), kubernetes (81 MB) and
-# grpc (39 MB) as transitive dependencies. None of the three is used —
-# embeddings come from Gemini, and Chroma runs in-process rather than
-# distributed — but they cannot be declined. Measured, accepted, recorded.
-# See docs/design-decisions.md.
+# Vectors moved to Postgres with pgvector: 30 KB instead of 200 MB, and the
+# index stops being ephemeral. Render's filesystem resets on every deploy and
+# every cold start, so a Chroma index had to be rebuilt each time.
+#
+# pandas and the generator's dependencies live in requirements-dev.txt —
+# they run locally and never in the API.
 
 SQLAlchemy==2.0.52
 psycopg[binary]==3.3.5
+pgvector==0.5.0
 python-dotenv==1.2.3
 google-genai==2.22.0
-chromadb==1.5.9
 fastapi==0.141.1
 uvicorn==0.52.4

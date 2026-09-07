@@ -5,7 +5,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "The question asks for a specific numeric defect PPM metric for a single supplier over a defined date range.",
+    "reason": "The question asks for a specific numerical metric (defect PPM) for a supplier within a given date range.",
     "query_id": "supplier_ppm_over_window",
     "error": null
   },
@@ -15,7 +15,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "This question asks for a ranking of suppliers based on defect rate, which can be directly answered using the SQL database.",
+    "reason": "The question asks for a ranking of suppliers by defect rate over a date range, which is directly answered by the SQL database without requiring qualitative explanations.",
     "query_id": "supplier_ppm_ranking",
     "error": null
   },
@@ -25,7 +25,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "The question asks for a quantitative defect count for a specific supplier in 2026, which is retrieved from the SQL database using defect units as the metric.",
+    "reason": "The question asks for a count of defect events for a specific supplier over a given time period, which is answered using numerical defect metrics in SQL.",
     "query_id": "supplier_ppm_over_window",
     "error": null
   },
@@ -35,7 +35,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "The question asks for a list of parts with no defect events during a specific month, which is directly answered by the parts_without_defects query.",
+    "reason": "The question asks for a list of parts with production volume but no recorded defect events in August 2026, which is directly answered by the parts_without_defects query.",
     "query_id": "parts_without_defects",
     "error": null
   },
@@ -43,10 +43,10 @@
     "id": "R05",
     "question": "For each commodity, which part had the worst PPM in the last 12 months?",
     "expected": "NEITHER",
-    "got": "SQL",
-    "correct": false,
-    "reason": "This requires ranking parts by PPM over the last 12 months, which is a quantitative query handled by the part PPM ranking query.",
-    "query_id": "part_ppm_ranking",
+    "got": "NEITHER",
+    "correct": true,
+    "reason": "The available database queries and document stores do not contain commodity information or support filtering and grouping by commodity.",
+    "query_id": null,
     "error": null
   },
   {
@@ -55,7 +55,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "The question asks for the proportion of defect units by defect code for a specific supplier, which is directly answered by the defect code breakdown query.",
+    "reason": "This question asks for the distribution of defect codes for a specific supplier, which is directly answered by the SQL database query showing defect code breakdown.",
     "query_id": "defect_code_breakdown",
     "error": null
   },
@@ -65,7 +65,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "The question asks for a root cause, which is documented within the 8D corrective action reports.",
+    "reason": "The question asks for the root cause of a specific defect, which is documented in the 8D corrective action reports.",
     "query_id": null,
     "error": null
   },
@@ -75,7 +75,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "The question asks for the specific corrective action taken on an issue, which is documented in the 8D corrective action reports.",
+    "reason": "The question asks about corrective actions taken for a specific issue, which are recorded in the 8D reports.",
     "query_id": null,
     "error": null
   },
@@ -85,7 +85,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "The status of open versus closed quality issues is tracked in the 8D corrective action reports in the document store.",
+    "reason": "The open or closed status of quality issues is tracked within the 8D corrective action reports in the document store.",
     "query_id": null,
     "error": null
   },
@@ -95,7 +95,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "8D reports explicitly record whether a problem has occurred before and the corrective actions taken to resolve it.",
+    "reason": "The question asks about past occurrences and corrective actions taken for a specific defect type, which are recorded in 8D reports.",
     "query_id": null,
     "error": null
   },
@@ -105,7 +105,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "The question asks for the explanation behind the open status of a specific 8D corrective action report, which is answered by the document store.",
+    "reason": "The question asks for the status and explanation regarding an open corrective action report, which is documented in the 8D reports.",
     "query_id": null,
     "error": null
   },
@@ -115,7 +115,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "The question asks for preventative and corrective actions taken to prevent a specific defect from recurring, which is answered by the 8D reports.",
+    "reason": "The question asks about corrective and preventive actions taken to stop recurrence, which is recorded in 8D reports.",
     "query_id": null,
     "error": null
   },
@@ -125,7 +125,7 @@
     "expected": "BOTH",
     "got": "BOTH",
     "correct": true,
-    "reason": "SQL is needed to show the monthly PPM trend data for SUP-003, while DOCS is needed to provide the root cause explanations for the defects.",
+    "reason": "Answering why the defect rate is worsening requires monthly PPM trend data from SQL and root cause explanations from 8D reports.",
     "query_id": "supplier_ppm_by_month",
     "error": null
   },
@@ -135,8 +135,8 @@
     "expected": "BOTH",
     "got": "BOTH",
     "correct": true,
-    "reason": "Determining if a corrective action request is needed requires SQL to evaluate defect severity and breakdown for SUP-001 alongside DOCS to check if an 8D report has already been opened for the mid-2026 issue.",
-    "query_id": null,
+    "reason": "Determining whether to raise a corrective action request requires checking DOCS to see if an 8D report is already open and SQL to evaluate the PPM trend and severity.",
+    "query_id": "supplier_ppm_by_month",
     "error": null
   },
   {
@@ -145,8 +145,8 @@
     "expected": "BOTH",
     "got": "BOTH",
     "correct": true,
-    "reason": "Identifying suppliers with open 8D reports requires DOCUMENTS, while evaluating whether their monthly PPM trend is worsening requires SQL data.",
-    "query_id": "supplier_ppm_by_month",
+    "reason": "Identifying open 8D report status requires DOCS, while evaluating whether a supplier has a worsening PPM trend requires SQL monthly PPM data.",
+    "query_id": null,
     "error": null
   },
   {
@@ -155,7 +155,7 @@
     "expected": "BOTH",
     "got": "DOCS",
     "correct": false,
-    "reason": "Determining whether two suppliers experienced the same kind of problem requires comparing the problem descriptions and root causes in their 8D reports.",
+    "reason": "Determining whether the quality issues are the same kind of problem requires comparing the problem descriptions and root causes detailed in the 8D reports.",
     "query_id": null,
     "error": null
   },
@@ -163,9 +163,9 @@
     "id": "BOTH05",
     "question": "PN-1042 had a bad month in November 2025. Was it fixed?",
     "expected": "BOTH",
-    "got": "BOTH",
-    "correct": true,
-    "reason": "Determining if PN-1042 was fixed requires checking DOCS for 8D report corrective actions and closure status, and checking SQL to verify whether defect rates actually decreased after November 2025.",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "Determining whether a quality issue was fixed relies on the corrective action implementation and closure status recorded in the 8D report.",
     "query_id": null,
     "error": null
   },
@@ -175,7 +175,7 @@
     "expected": "DOCS",
     "got": "DOCS",
     "correct": true,
-    "reason": "8D reports explicitly track problem descriptions, root causes, and whether an issue has occurred before.",
+    "reason": "The question asks whether a defect issue is a recurring problem, which is documented in the 8D corrective action reports.",
     "query_id": null,
     "error": null
   },
@@ -185,7 +185,7 @@
     "expected": "NEITHER",
     "got": "NEITHER",
     "correct": true,
-    "reason": "Neither source contains on-time delivery metrics, as SQL tracks defect records/production volumes and DOCS holds quality 8D reports.",
+    "reason": "Neither the SQL database nor the document store contains delivery performance or on-time delivery metrics.",
     "query_id": null,
     "error": null
   },
@@ -195,7 +195,7 @@
     "expected": "NEITHER",
     "got": "NEITHER",
     "correct": true,
-    "reason": "Operator and shift details are not tracked in either the SQL database queries or the 8D document store.",
+    "reason": "Neither the SQL defect database nor the 8D document store records individual shift logs or operator identities.",
     "query_id": null,
     "error": null
   },
@@ -205,7 +205,7 @@
     "expected": "NEITHER",
     "got": "NEITHER",
     "correct": true,
-    "reason": "SUP-011 is not within the supported set of suppliers (SUP-001 through SUP-010).",
+    "reason": "SUP-011 is not among the supported suppliers in the dataset.",
     "query_id": null,
     "error": null
   },
@@ -215,7 +215,7 @@
     "expected": "NEITHER",
     "got": "NEITHER",
     "correct": true,
-    "reason": "Neither the SQL database nor the 8D corrective action reports contain unit cost or financial data for parts.",
+    "reason": "Neither the SQL database nor the 8D document reports contain financial or part unit cost data.",
     "query_id": null,
     "error": null
   },
@@ -225,7 +225,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "The question asks for a count of defects for a supported supplier, which is a purely numerical metric stored in the database.",
+    "reason": "The question asks for a count of defects for SUP-003, which is a quantitative metric provided by the SQL database.",
     "query_id": "supplier_ppm_over_window",
     "error": null
   },
@@ -235,7 +235,7 @@
     "expected": "SQL",
     "got": "SQL",
     "correct": true,
-    "reason": "Identifying the worst part requires ranking parts by defect rate (PPM), which is provided by the database.",
+    "reason": "Determining the worst part requires ranking parts by defect rate (PPM), assuming 'worst' refers to the highest defect rate.",
     "query_id": "part_ppm_ranking",
     "error": null
   }

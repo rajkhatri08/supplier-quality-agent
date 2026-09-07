@@ -1,27 +1,45 @@
-"""Build the Chroma index from 8D report chunks.
+"""Build the vector index in Postgres.
 
-Rebuilds from scratch each run. With 96 chunks that takes seconds, and it
-means the index is always a pure function of what is in Postgres — no drift
-between the database and the vector store.
+Rewritten at Phase 9. Chroma was dropped because it pulled 200 MB of unused
+transitive dependencies and a clean deploy install measured 476 MB against
+Render's 512 MB limit.
 
-That property matters for Phase 9: Render's filesystem is ephemeral and resets
-on every deploy, so the index has to rebuild at startup anyway. Making rebuild
-the normal path rather than a recovery path means the deployed behaviour is
-the behaviour that gets tested.
+Postgres was the better answer for a second reason: Render's filesystem is
+ephemeral, so a Chroma index had to be rebuilt on every deploy and every cold
+start. Vectors in the database do not disappear.
+
+The index is still a pure function of reports_8d — this deletes and rebuilds
+rather than upserting, so a changed report cannot leave an orphaned chunk
+behind.
 """
 
+import os
 import sys
 from pathlib import Path
 
-import chromadb
+from dotenv import load_dotenv
+from pgvector.psycopg import register_vector
+from sqlalchemy import create_engine, text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.chunker import chunk_all  # noqa: E402
 from tools.embeddings import embed_documents  # noqa: E402
 
-INDEX_DIR = Path(__file__).resolve().parents[1] / "chroma_index"
-COLLECTION = "reports_8d"
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+_engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
+
+INSERT = text("""
+    INSERT INTO report_chunks (
+        chunk_id, report_id, supplier_id, defect_code,
+        discipline, discipline_title, status,
+        opened_date, closed_date, title, chunk_text, embedding
+    ) VALUES (
+        :chunk_id, :report_id, :supplier_id, :defect_code,
+        :discipline, :discipline_title, :status,
+        :opened_date, :closed_date, :title, :chunk_text, :embedding
+    )
+""")
 
 
 def build_index() -> int:
@@ -31,48 +49,52 @@ def build_index() -> int:
     print("embedding...")
     vectors = embed_documents([c.text for c in chunks])
 
-    client = chromadb.PersistentClient(path=str(INDEX_DIR))
+    with _engine.begin() as conn:
+        # register_vector teaches psycopg how to send a Python list as a
+        # pgvector value. Without it the insert fails on the embedding column.
+        register_vector(conn.connection.driver_connection)
 
-    # Delete and recreate rather than upsert. The index should be a pure
-    # function of the database; upserting leaves orphans behind when a
-    # report is removed or a discipline is edited.
-    try:
-        client.delete_collection(COLLECTION)
-        print(f"dropped existing collection")
-    except Exception:
-        pass
+        conn.execute(text("DELETE FROM report_chunks"))
 
-    collection = client.create_collection(
-        name=COLLECTION,
-        metadata={"hnsw:space": "cosine"},
-    )
+        for chunk, vector in zip(chunks, vectors):
+            conn.execute(INSERT, {
+                "chunk_id": chunk.chunk_id,
+                "report_id": chunk.report_id,
+                "supplier_id": chunk.supplier_id,
+                "defect_code": chunk.defect_code,
+                "discipline": chunk.discipline,
+                "discipline_title": chunk.discipline_title,
+                "status": chunk.status,
+                "opened_date": chunk.opened_date,
+                "closed_date": chunk.closed_date,
+                "title": chunk.title,
+                "chunk_text": chunk.text,
+                "embedding": vector,
+            })
 
-    collection.add(
-        ids=[c.chunk_id for c in chunks],
-        documents=[c.text for c in chunks],
-        embeddings=vectors,
-        metadatas=[c.metadata() for c in chunks],
-    )
+    with _engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM report_chunks")).scalar()
 
-    print(f"indexed {collection.count()} chunks into {INDEX_DIR.name}/")
-    return collection.count()
+    print(f"indexed {count} chunks into report_chunks")
+    return count
 
 
 if __name__ == "__main__":
-    count = build_index()
+    build_index()
 
-    client = chromadb.PersistentClient(path=str(INDEX_DIR))
-    collection = client.get_collection(COLLECTION)
+    with _engine.connect() as conn:
+        print("\n--- verification ---")
+        rows = conn.execute(text(
+            "SELECT status, COUNT(*) FROM report_chunks GROUP BY status"
+        )).all()
+        for status, n in rows:
+            print(f"  {status}: {n}")
 
-    print("\n--- verification ---")
-    print(f"count: {collection.count()}")
-
-    sample = collection.get(ids=["8D-2026-011#d4_root_cause"])
-    print(f"\nspot check — 8D-2026-011 D4:")
-    print(f"  metadata: {sample['metadatas'][0]}")
-    print(f"  text starts: {sample['documents'][0][:80]}...")
-
-    open_chunks = collection.get(where={"status": "Open"})
-    closed_chunks = collection.get(where={"status": "Closed"})
-    print(f"\nstatus split: {len(open_chunks['ids'])} open, "
-          f"{len(closed_chunks['ids'])} closed")
+        sample = conn.execute(text(
+            "SELECT chunk_id, discipline_title, "
+            "       vector_dims(embedding) AS dims "
+            "FROM report_chunks WHERE chunk_id = '8D-2026-011#d4_root_cause'"
+        )).first()
+        print(f"\n  spot check: {sample.chunk_id}")
+        print(f"    {sample.discipline_title}, {sample.dims} dimensions")
