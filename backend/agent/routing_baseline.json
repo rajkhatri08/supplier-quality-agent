@@ -1,0 +1,242 @@
+[
+  {
+    "id": "R01",
+    "question": "What was SUP-003's defect PPM in August 2026?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "The question asks for a specific numerical metric (defect PPM) for a single supplier over a defined date range, which is provided by the SQL database.",
+    "query_id": "supplier_ppm_over_window",
+    "error": null
+  },
+  {
+    "id": "R02",
+    "question": "Which supplier had the worst defect rate over the last 12 months?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "The question asks for a ranking of suppliers by defect rate, which is directly answered by the supplier_ppm_ranking query using PPM metrics over the specified date range.",
+    "query_id": "supplier_ppm_ranking",
+    "error": null
+  },
+  {
+    "id": "R03",
+    "question": "How many defect events were recorded against SUP-009 parts in 2026?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "Defect data is stored in SQL, so supplier_ppm_over_window can be used to retrieve defect metrics for SUP-009 in 2026 using defect units.",
+    "query_id": "supplier_ppm_over_window",
+    "error": null
+  },
+  {
+    "id": "R04",
+    "question": "Which parts recorded no defects at all in August 2026?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "The question asks for a list of parts with production volume but no defects in August 2026, which is answered by the parts_without_defects query.",
+    "query_id": "parts_without_defects",
+    "error": null
+  },
+  {
+    "id": "R05",
+    "question": "For each commodity, which part had the worst PPM in the last 12 months?",
+    "expected": "SQL",
+    "got": "NEITHER",
+    "correct": false,
+    "reason": "Commodity groupings are not supported in the available SQL queries or 8D documents.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R06",
+    "question": "Which defect code accounts for the largest share of SUP-003's defect units?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "The question asks for the defect code with the largest share of a specific supplier's defect units, which is provided by the SQL query breakdown.",
+    "query_id": "defect_code_breakdown",
+    "error": null
+  },
+  {
+    "id": "R07",
+    "question": "What was the root cause of the roof rail splitting?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "Root causes of quality issues like roof rail splitting are detailed in the 8D corrective action reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R08",
+    "question": "What corrective action was taken on the missing fasteners issue?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "Questions about corrective actions taken to address a quality issue are answered in the 8D corrective action reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R09",
+    "question": "Which quality issues are still open?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "The open or closed status of quality issues is recorded directly within the 8D corrective action reports in the document store.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R10",
+    "question": "Has weld porosity at SUP-003 happened before, and what was done about it?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "The question asks about problem recurrence and corrective actions taken, which are documented in 8D corrective action reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R11",
+    "question": "Why has the sealer skip problem on door hem flanges not been closed yet?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "The question asks for an explanation of why an open 8D corrective action report is not yet closed, which is contained in the 8D report documents.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "R12",
+    "question": "What is being done to stop weld nugget problems recurring at SUP-004?",
+    "expected": "DOCS",
+    "got": "DOCS",
+    "correct": true,
+    "reason": "The question asks for corrective and preventive actions taken to prevent recurrence, which are documented in 8D reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "BOTH01",
+    "question": "Why is SUP-003's defect rate getting worse?",
+    "expected": "BOTH",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "The question asks for the root cause or explanation behind a worsening quality trend, which is recorded in 8D corrective action reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "BOTH02",
+    "question": "SUP-001's PPM rose sharply in mid-2026. Should we raise a corrective action request?",
+    "expected": "BOTH",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "DOCS contains existing 8D corrective action reports and their status to determine if a corrective action request has already been raised for SUP-001.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "BOTH03",
+    "question": "Which suppliers with open 8D reports also have a worsening PPM trend?",
+    "expected": "BOTH",
+    "got": "BOTH",
+    "correct": true,
+    "reason": "Identifying suppliers with open 8D reports requires document records, while evaluating whether their PPM trend is worsening requires monthly database calculations.",
+    "query_id": "supplier_ppm_by_month",
+    "error": null
+  },
+  {
+    "id": "BOTH04",
+    "question": "Both SUP-001 and SUP-003 show a PPM increase in 2026. Are they the same kind of problem?",
+    "expected": "BOTH",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "Determining whether two suppliers experienced the same kind of issue requires comparing the problem descriptions and root causes documented in their 8D corrective action reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "BOTH05",
+    "question": "PN-1042 had a bad month in November 2025. Was it fixed?",
+    "expected": "BOTH",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "Determining if an issue was fixed requires checking the resolution status and permanent corrective actions in the 8D reports.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "BOTH06",
+    "question": "Is the weld porosity at SUP-003 the same issue as last year?",
+    "expected": "BOTH",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "8D reports explicitly track problem details and record whether an issue has occurred before.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "N01",
+    "question": "What is SUP-003's on-time delivery rate?",
+    "expected": "NEITHER",
+    "got": "NEITHER",
+    "correct": true,
+    "reason": "Neither source contains delivery performance or on-time delivery data.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "N02",
+    "question": "Which operator was on shift when the D-WLD-01 defects were found?",
+    "expected": "NEITHER",
+    "got": "NEITHER",
+    "correct": true,
+    "reason": "Neither the SQL database nor the 8D corrective action reports contain operator shift logs or roster information.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "N03",
+    "question": "Why did SUP-011's PPM spike in March 2026?",
+    "expected": "NEITHER",
+    "got": "DOCS",
+    "correct": false,
+    "reason": "Questions asking for the cause or explanation of a defect or quality issue are answered by the 8D corrective action reports in DOCS.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "N04",
+    "question": "What is the unit cost of the parts SUP-005 supplies?",
+    "expected": "NEITHER",
+    "got": "NEITHER",
+    "correct": true,
+    "reason": "Neither the SQL database nor the 8D document store contains part unit cost or financial pricing data.",
+    "query_id": null,
+    "error": null
+  },
+  {
+    "id": "A01",
+    "question": "How many defects did SUP-003 have?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "The question asks for a quantitative count of defects for a specific supplier, which is provided by the SQL database via defect units.",
+    "query_id": "supplier_ppm_over_window",
+    "error": null
+  },
+  {
+    "id": "A02",
+    "question": "Which part is the worst?",
+    "expected": "SQL",
+    "got": "SQL",
+    "correct": true,
+    "reason": "Identifying the worst part requires ranking parts by defect performance, which is provided by the part PPM ranking query using PPM rate.",
+    "query_id": "part_ppm_ranking",
+    "error": null
+  }
+]
