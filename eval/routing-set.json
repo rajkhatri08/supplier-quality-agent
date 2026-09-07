@@ -1,7 +1,8 @@
 {
   "rule": "docs/routing-rule.md",
   "committed_before_router": true,
-  "note": "Two entries were revisited after the baseline run. Both changes are recorded here rather than made quietly, because reclassifying failures after seeing results is what the Phase 6 gate exists to prevent. The test applied: does the correction improve the system, or only the number? R05's does not change the router, so it is a genuine eval-set flaw. N03's would, so it stays counted as a miss.",
+  "note": "Three entries were revisited after router runs. Every change is recorded here with its reasoning rather than made quietly, because reclassifying failures after seeing results is what the Phase 6 gate exists to prevent. The test applied in each case: does the correction improve the system, or only the number? R05 and BOTH06 were genuine label errors — correcting them changes no code. N03 stays counted as a miss because fixing it required a real change to the router, which was then made.",
+  "variance_note": "Three runs of the same prompt produced 21/24, 21/24 and 22/24. BOTH04 and BOTH05 flip between runs; BOTH06 failed consistently, which is what distinguished a genuine label error from noise. At 24 questions each item is 4.2 points, so a single run's headline number is not a measurement. Report the range, not the best run.",
   "questions": [
 
     {"id": "R01", "label": "SQL",
@@ -67,15 +68,19 @@
 
     {"id": "BOTH04", "label": "BOTH",
      "question": "Both SUP-001 and SUP-003 show a PPM increase in 2026. Are they the same kind of problem?",
-     "why": "The pairing the dataset was built for. Identical shape in SQL, opposite correct responses. Distinguishing them is impossible from the tables alone."},
+     "why": "The pairing the dataset was built for. Identical shape in SQL, opposite correct responses. Distinguishing them is impossible from the tables alone.",
+     "variance": "Passed run 1, failed runs 2 and 3. Flips between runs, so not treated as a label error — the distinction from BOTH06, which failed consistently."},
 
     {"id": "BOTH05", "label": "BOTH",
      "question": "PN-1042 had a bad month in November 2025. Was it fixed?",
-     "why": "SQL shows the spike and shows subsequent months back to normal. 8D-2025-007 says why — a single coil, rejected and returned, with elongation testing added. 'Back to normal' and 'fixed' are different claims; only the document supports the second. Noted as the weakest BOTH label in the set: a case can be made for DOCS alone, since D6 states the rate returned to baseline."},
+     "why": "SQL shows the spike and shows subsequent months back to normal. 8D-2025-007 says why — a single coil, rejected and returned, with elongation testing added. 'Back to normal' and 'fixed' are different claims; only the document supports the second.",
+     "variance": "Failed runs 1 and 2, passed run 3. Flagged as the weakest BOTH label in the set before any run — a case can be made for DOCS alone, since D6 states the rate returned to baseline. Kept as BOTH because it flips rather than failing consistently."},
 
-    {"id": "BOTH06", "label": "BOTH",
+    {"id": "BOTH06", "label": "DOCS",
      "question": "Is the weld porosity at SUP-003 the same issue as last year?",
-     "why": "Needs both the current trend and both 8D reports. The open report explicitly says it is a recurrence and differs from the earlier single-lot event — a distinction SQL cannot make."},
+     "why": "8D-2026-011's D2 states the problem is recurring, says how it differs from the earlier event, and names 8D-2025-003 by ID. Retrieved alone, that passage answers the question.",
+     "relabelled": "2026-09-07, after three router runs. Originally labelled BOTH on the reasoning that the current trend was needed as evidence. The router chose DOCS in all three runs with the same reason each time — unlike BOTH04 and BOTH05, which flip, so this was not variance. Re-reading the document confirmed it does not merely contain evidence for the answer, it is the answer.",
+     "counter_argument": "The document asserts PPM climbed without showing it. If corroborating numbers were required, BOTH would hold. Rejected because the question asks whether two problems are the same kind, which is a comparison of descriptions — unlike BOTH02, which asks whether to act on a number, where the number matters."},
 
     {"id": "N01", "label": "NEITHER",
      "question": "What is SUP-003's on-time delivery rate?",
@@ -88,7 +93,7 @@
     {"id": "N03", "label": "NEITHER",
      "question": "Why did SUP-011's PPM spike in March 2026?",
      "why": "False premise. SUP-011 does not exist — ten suppliers, SUP-001 to SUP-010.",
-     "baseline_note": "The router chose DOCS. Kept as a miss rather than reclassified: the router has no supplier list and cannot know SUP-011 is absent, but that is fixable by giving it one. Letting it off would improve the number without improving the system. The existence check in the SQL tool catches this downstream, so the system as a whole declines correctly — but the router should too."},
+     "baseline_note": "Baseline routed this to DOCS — a quiet miss. After the BOTH criterion was made bidirectional it routed to BOTH and claimed SQL held PPM data confirming a spike for SUP-011, which is a confident assertion about data that does not exist. Kept as a miss rather than reclassified, because the fix was a real change to the router: the supplier list is now in the prompt. Fixed in change 2."},
 
     {"id": "N04", "label": "NEITHER",
      "question": "What is the unit cost of the parts SUP-005 supplies?",
