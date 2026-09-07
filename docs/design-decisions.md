@@ -7,9 +7,7 @@ questions about it have a known correct answer. Without them the data is
 noise and "which supplier is worst" has no defensible ground truth.
 
 All figures are **measured from the production data**, not intended targets.
-Adding the gauge-drift artefact changed the random stream, so every figure
-below was re-measured after that change. Re-measure with
-`backend/db/verify_data.py` after any generator edit.
+Re-measure with `backend/db/verify_data.py` after any generator edit.
 
 **Trend** — SUP-003, weld assemblies.
 PPM climbs across the final 6 months: 899 → 1,049 → 1,039 → 1,360 → 1,672 →
@@ -17,8 +15,8 @@ PPM climbs across the final 6 months: 899 → 1,049 → 1,039 → 1,360 → 1,67
 wear beyond the dressing interval — gradual degradation, not a single event.
 Documented in 8D-2025-003 (closed) and 8D-2026-011 (open).
 
-Note that baseline noise reaches 750 PPM in January 2025, so a single trend
-month compared against a single baseline month can go either way. Only the
+Baseline noise reaches 750 PPM in January 2025, so a single trend month
+compared against a single baseline month can go either way. Only the
 sustained climb distinguishes trend from noise.
 
 **Spike** — PN-1042, Roof Rail Mk2 (roof stamping, supplied by SUP-009).
@@ -50,8 +48,7 @@ which.
 One discrepancy worth knowing: the 8D says the rise began in March, but March
 2026 (551 PPM) sits inside normal variation. The visible rise is April
 onwards. Left as written — a report opened in May describing a trend as
-starting in March is how real 8Ds read, and the approximation is realistic
-rather than an error.
+starting in March is how real 8Ds read.
 
 **Low runners** — PN-1006, PN-1023, PN-1031, PN-1044, PN-1050.
 400-1,400 units per month against 9,000-80,000 for everything else. Four of
@@ -66,7 +63,7 @@ chunking. Two pairs matter:
 
 - **SUP-003**: 8D-2025-003 (closed Feb 2025) records weld porosity being
   fixed; 8D-2026-011 (open June 2026) records it recurring and references
-  the earlier report. Makes the Phase 2 status decision demonstrable.
+  the earlier report.
 - **SUP-001**: 8D-2025-012 (closed, real die wear) and 8D-2026-009 (closed,
   measurement artefact). The same supplier with one genuine problem and one
   that was never a problem at all.
@@ -85,10 +82,10 @@ distinct ways a PPM figure can be wrong:
 
 Only the first is a supplier problem. SQL cannot distinguish the three,
 because the defect table looks identical in all cases. Separating them
-needs a document: an audit note, an 8D, a gauge R&R record.
+needs a document.
 
 This is the strongest argument for routing to both SQL and documents. Case 2
-is now built into the data as the SUP-001 artefact and is testable. Case 3
+is built into the data as the SUP-001 artefact and is testable. Case 3
 remains reasoning only — no document records underreporting, and inventing
 one would mean fabricating an allegation rather than modelling a known
 weakness.
@@ -105,17 +102,16 @@ immediately, and it undermines the credibility the project depends on.
 Monthly build volume varies by commodity: fasteners 55-80k, sealants 30-45k,
 stampings 18-26k, weld assemblies 9-14k, low runners 0.4-1.4k.
 
-This is deliberate. With uniform volumes, PPM and raw defect count always
-agree about who is worst. With this spread they disagree, so "which supplier
-has the most defects" and "which supplier has the worst defect rate" have
-different correct answers.
+Deliberate. With uniform volumes, PPM and raw defect count always agree about
+who is worst. With this spread they disagree, so "which supplier has the most
+defects" and "which supplier has the worst defect rate" have different
+correct answers.
 
 ## Defect events vs defect units
 
 `defects` rows are defect *events*; each carries a `quantity` of 1-4 units.
 So "how many defects" has two valid readings — 4,725 events, more units.
-Any question using that phrasing is ambiguous by construction, and the
-routing eval set must be explicit about which is meant.
+Any question using that phrasing is ambiguous by construction.
 
 ## Phase 1 — SQL tool decision
 
@@ -213,10 +209,32 @@ The contract caught two silent problems on its first runs:
    arithmetically unreachable. That failure led to low-runner parts — a fix
    to the cause rather than the symptom.
 
+## Phase 4 — the SQL tool
+
+Eight parameterised queries in a fixed catalogue. The agent selects one and
+extracts parameters; it never writes SQL and never sees SQL.
+
+Two layers of validation, doing different jobs. **Format** — pydantic, with
+`Literal` on the query id and regex on every identifier. **Existence** —
+checked against the dimension tables, because `SUP-999` passes every regex
+and does not exist. Without the second check it returns zero rows and reads
+as "this supplier has no defects" rather than "this supplier is not real."
+
+Injection is structurally closed before either layer: parameters bind through
+the driver rather than being interpolated into SQL text, so a malicious value
+is a string that matches nothing. What validation adds is loud failure rather
+than quiet emptiness.
+
+Four distinct failure kinds — `invalid_request`, `unknown_entity`,
+`unavailable`, `query_failed`. Collapsing them would itself be a silent
+failure: `unknown_entity` and `unavailable` look identical from outside (no
+data), but one means the supplier is not real and the other means it could
+not be checked.
+
 ## Phase 5 — retrieval
 
 Gemini embeddings, Chroma storage, no local model. Keeps PyTorch out of the
-deploy, which matters on a 512 MB tier.
+deploy, which matters on a 512 MB tier. Same approach as App 1.
 
 **Relevance threshold: 0.35 cosine distance.** Measured, not assumed. Across
 seven test questions the bands separated cleanly: relevant matches 0.22-0.33,
@@ -234,3 +252,101 @@ Chroma's index is also ephemeral on Render — the filesystem resets on every
 deploy. The index rebuilds from Postgres at startup, which takes seconds for
 104 chunks, and rebuild is the normal path rather than a recovery path so the
 deployed behaviour is the behaviour that gets tested.
+
+## Phase 6 — the routing rule
+
+Full rule in `docs/routing-rule.md`, committed before the router existed.
+
+Four labels: SQL, DOCS, BOTH, NEITHER. The test for BOTH is not whether both
+sources return something — they almost always do — but whether an answer from
+one source alone would be wrong, misleading, or missing its reason.
+
+Scoring gives no partial credit. Routing BOTH when the label is SQL is wrong,
+because an agent that always routes BOTH has learned nothing.
+
+## Phase 7 — routing accuracy
+
+**21-22 of 24 across five runs, 87.5-91.7%.** Reported as a range because at
+24 questions each item is 4.2 points and three questions flip between runs.
+A single run's number would be selecting on noise.
+
+| | correct |
+|---|---|
+| SQL | 7/7 |
+| DOCS | 7/7 |
+| NEITHER | 5/5 |
+| BOTH | 3-4/5 |
+
+The consistent misses are BOTH04 and BOTH05, both of which flip. Their
+routing reasons are defensible every time — the 8D reports genuinely do hold
+problem descriptions and closure status. They sit on a boundary the rule
+draws ambiguously rather than being errors.
+
+Two changes took it from the 75% baseline:
+
+1. **The BOTH criterion was made bidirectional.** The original prompt
+   described what a SQL-only answer would be missing but had no equivalent
+   for a DOCS-only answer, so the router answered "where does the explanation
+   live?" when the question is "what would a complete answer need?"
+   75% to 87.5%, BOTH 1/6 to 4/6, nothing else dropped.
+
+2. **The supplier list was put in the prompt.** Change 1 had caused a
+   regression: the router routed a question about SUP-011 — which does not
+   exist — to BOTH and claimed SQL held PPM data confirming a spike. A
+   confident claim about data that does not exist is worse than the quiet
+   miss it replaced. NEITHER went to 5/5.
+
+Two labels were corrected after seeing results, both recorded in
+`eval/routing-set.json` with reasoning. The test applied each time: does the
+correction improve the system, or only the number? R05 and BOTH06 were label
+errors — correcting them changed no code. N03 stayed counted as a miss
+because fixing it required a real change, which was then made.
+
+### A bug the trace found
+
+The document tool accepts a `supplier_id` filter and nothing was passing it.
+On "why is SUP-003's defect rate getting worse", five of six retrieved
+passages came from 8D-2026-009 — the SUP-001 gauge-drift report.
+Semantically similar (a PPM rise, a root cause), wrong supplier.
+
+The passage counts looked correct. Only the citations exposed it. That is the
+argument for showing provenance rather than summary statistics, and it was
+found by building the trace rather than by testing for it.
+
+## Phase 7-8 — routing latency
+
+Measured across five scoring runs and the interactive path: routing takes
+4-8 seconds when the Gemini API is responsive and 25-40 seconds when it is
+not. The 24-question scoring script has run in two minutes and in ten, with
+identical code. The variance is the API, not the agent — the tools take 1-2
+seconds throughout.
+
+**Accepted rather than hidden.** Two consequences shaped the build:
+
+The API is split into `/route` and `/tools` rather than one endpoint. The
+routing decision is the most interesting thing the agent produces and it is
+available several seconds before the tools finish, so the UI shows it
+immediately rather than holding it back.
+
+The frontend counts the wait out loud — "deciding — 12.4s" — because dead air
+reads as broken and a visible counter reads as working.
+
+Caching the demo questions was considered and rejected. It would make the
+demo instant and misleading; the honest version is to say the routing call is
+a real API call and let the counter show it.
+
+## Phase 8 — the interface
+
+A single HTML file, no framework. The page makes two fetch calls and renders
+a trace; Next.js would have brought a build step and hundreds of megabytes of
+node_modules for no benefit the task requires.
+
+**The routing decision is the hero, above the results.** If the answer sits
+at the top and the trace is a panel below it, most people read the answer and
+never look at the trace — and the depth the project is judged on becomes
+invisible.
+
+The assumed date window is printed under every SQL table. The router extracts
+a supplier but not a date range, so the frontend supplies one. Hiding that
+would be a number with a concealed assumption, which is the exact failure the
+project is about.
