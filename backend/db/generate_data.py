@@ -155,6 +155,27 @@ SPIKE_MULTIPLIER = 8.0
 
 CONCENTRATION_CODE = "D-WLD-01"
 
+# Pattern 4 — the measurement artefact. SUP-001's recorded PPM rises across
+# March to June 2026 and then returns to baseline. Nothing changed at the
+# supplier: 8D-2026-009 records that the incoming inspection fixture had
+# drifted out of calibration and the parts were conforming all along.
+#
+# This is the only planted pattern where the data is deliberately WRONG.
+# SQL alone says SUP-001 got worse; the document says the measurement did.
+# Neither route alone gives a correct answer, which is what makes it the
+# test case for the "claim needs corroboration" rule in docs/routing-rule.md.
+#
+# Kept smaller than the SUP-003 electrode trend so the two are visibly
+# different in magnitude — a real degradation and a measurement artefact
+# should not look identical.
+GAUGE_DRIFT_SUPPLIER = "SUP-001"
+GAUGE_DRIFT_MONTHS = {
+    date(2026, 3, 1): 1.25,
+    date(2026, 4, 1): 1.45,
+    date(2026, 5, 1): 1.60,
+    date(2026, 6, 1): 1.70,
+}
+
 
 def build_suppliers() -> pd.DataFrame:
     rows = [
@@ -297,6 +318,11 @@ def build_defects(
         if v.part_id == SPIKE_PART and month == SPIKE_MONTH:
             ppm *= SPIKE_MULTIPLIER
 
+        # Pattern 4 — measurement artefact: SUP-001's RECORDED rate rises
+        # while the parts stay conforming. See 8D-2026-009.
+        if supplier_id == GAUGE_DRIFT_SUPPLIER and month in GAUGE_DRIFT_MONTHS:
+            ppm *= GAUGE_DRIFT_MONTHS[month]
+
         expected = ppm * v.units_produced / 1_000_000
 
         # No floor here. The spike generator used max(1, ...), which
@@ -341,14 +367,21 @@ def build_defects(
 
 
 def build_reports_8d() -> pd.DataFrame:
-    """Twelve 8D reports, four open.
+    """Thirteen 8D reports, four open.
 
-    The SUP-003 / D-WLD-01 pair is the important one. A closed report from
-    early 2025 records the same failure being fixed; an open report from
-    mid-2026 records it recurring, which is the electrode-wear trend planted
-    in the defect data. Phase 2 decided closed reports rank lower but stay
-    retrievable — that pair is what makes the distinction demonstrable, and
-    it gives Phase 6 a question that genuinely needs both routes.
+    Two pairs matter.
+
+    The SUP-003 pair: a closed report from early 2025 records weld porosity
+    being fixed; an open report from mid-2026 records it recurring, and
+    references the earlier one. That makes the Phase 2 status decision
+    demonstrable — closed reports rank alongside open ones rather than being
+    vetoed, because a closed report is the right answer to "has this
+    happened before" and the wrong answer to "what is failing now".
+
+    8D-2026-009 is the measurement artefact. SUP-001's recorded PPM rises
+    across four months and the report says the parts were conforming — the
+    incoming fixture had drifted out of calibration. SQL alone blames the
+    supplier. Only the document says the data is wrong.
     """
     rows = [
         (
@@ -439,6 +472,39 @@ def build_reports_8d() -> pd.DataFrame:
             "Stroke-count maintenance triggers applied to all high-volume dies "
             "at the supplier.",
             "Closed 2025-09-19 after verified conformance.",
+        ),
+        (
+            "8D-2026-009", "SUP-001", "D-STP-03", None,
+            "Apparent dimensional drift — rocker panels and floor pans",
+            date(2026, 5, 14), date(2026, 8, 8), "Closed",
+            "Supplier quality engineer, metrology technician, gauge "
+            "calibration lead, supplier representative.",
+            "Recorded PPM for SUP-001 stampings rose over four consecutive "
+            "months from March 2026. Dimensional non-conformances at incoming "
+            "inspection increased with no corresponding change at the "
+            "supplier's process.",
+            "Suspect stock held pending investigation. Supplier asked to "
+            "provide CMM data from their own final inspection for the same "
+            "lots.",
+            "Not a supplier problem. The incoming inspection fixture had "
+            "drifted out of calibration. Supplier CMM data for the same lots "
+            "showed all parts conforming. Gauge R&R on the incoming fixture "
+            "returned a repeatability figure outside the acceptable range, "
+            "confirming the measurement system rather than the parts was at "
+            "fault. The recorded PPM increase was an artefact.",
+            "Incoming inspection fixture recalibrated and re-qualified. Gauge "
+            "R&R added to the fixture's periodic maintenance schedule rather "
+            "than being performed only on introduction.",
+            "Recalibrated 2026-06-30. Parts held under the investigation "
+            "released after re-measurement. Recorded PPM returned to the "
+            "prior baseline within one month.",
+            "Gauge R&R scheduled at fixed intervals for all incoming "
+            "inspection fixtures. Any PPM shift with no corresponding process "
+            "change now triggers a measurement system check before a supplier "
+            "corrective action request is raised.",
+            "Closed 2026-08-08. Root cause confirmed as measurement system "
+            "error. No supplier corrective action required — the recorded PPM "
+            "data for March to June 2026 overstates the actual defect rate.",
         ),
         (
             "8D-2026-004", "SUP-007", "D-SLR-03", None,
