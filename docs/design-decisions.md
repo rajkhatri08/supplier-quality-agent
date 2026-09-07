@@ -6,28 +6,52 @@ These patterns are deliberately built into the synthetic data so that
 questions about it have a known correct answer. Without them the data is
 noise and "which supplier is worst" has no defensible ground truth.
 
-All figures below are **measured from the production data** (public schema),
-not intended targets. They differ from the Phase 0 spike data because
-low-runner parts changed the volume distribution.
+All figures are **measured from the production data**, not intended targets.
+Adding the gauge-drift artefact changed the random stream, so every figure
+below was re-measured after that change. Re-measure with
+`backend/db/verify_data.py` after any generator edit.
 
 **Trend** — SUP-003, weld assemblies.
-PPM climbs across the final 6 months: 799 → 960 → 1,080 → 1,514 → 1,512 →
-1,668, against a baseline of roughly 390-870. Models welding electrode tip
+PPM climbs across the final 6 months: 899 → 1,049 → 1,039 → 1,360 → 1,672 →
+1,586, against a baseline of roughly 334-750. Models welding electrode tip
 wear beyond the dressing interval — gradual degradation, not a single event.
-Note that one baseline month (June 2025, 872 PPM) exceeds three of the six
-trend months, so a single-month comparison cannot distinguish trend from
-noise. Only the sustained climb does.
+Documented in 8D-2025-003 (closed) and 8D-2026-011 (open).
+
+Note that baseline noise reaches 750 PPM in January 2025, so a single trend
+month compared against a single baseline month can go either way. Only the
+sustained climb distinguishes trend from noise.
 
 **Spike** — PN-1042, Roof Rail Mk2 (roof stamping, supplied by SUP-009).
 November 2025: 53 defect events / 120 defect units, against a background of
-2-7 events per month. Models a single bad steel coil entering the line.
-Documented in 8D-2025-007.
+2-7 events per month. Models a single bad steel coil. Documented in
+8D-2025-007.
 
 **Concentration** — D-WLD-01, weld porosity, Critical.
-87.4% of occurrences fall on SUP-003's parts (340 of 389). Emerges from
+89.2% of occurrences fall on SUP-003's parts (340 of 381). Emerges from
 weighted selection rather than a hard rule, so the figure is measured rather
-than asserted. Deliberately the same supplier as the trend, so "worst weld
-porosity" and "who is trending worse" point at the same place.
+than asserted. Deliberately the same supplier as the trend.
+
+**Measurement artefact** — SUP-001, stampings.
+Recorded PPM rises April to June 2026 (746, 856, 854) against a baseline
+around 430-570, then returns to baseline in July and August (478, 433).
+
+This is the only planted pattern where **the data is deliberately wrong**.
+8D-2026-009 records that the incoming inspection fixture had drifted out of
+calibration: supplier CMM data showed the parts conforming, gauge R&R
+confirmed the measurement system was at fault, and the recorded PPM for those
+months overstates the actual defect rate.
+
+The pairing with SUP-003 is the point. Two suppliers, both showing a PPM
+climb in mid-2026, and the correct response is opposite — one needs supplier
+corrective action, the other needed a fixture recalibrated. SQL alone cannot
+distinguish them because the tables look identical. Only the 8D says which is
+which.
+
+One discrepancy worth knowing: the 8D says the rise began in March, but March
+2026 (551 PPM) sits inside normal variation. The visible rise is April
+onwards. Left as written — a report opened in May describing a trend as
+starting in March is how real 8Ds read, and the approximation is realistic
+rather than an error.
 
 **Low runners** — PN-1006, PN-1023, PN-1031, PN-1044, PN-1050.
 400-1,400 units per month against 9,000-80,000 for everything else. Four of
@@ -37,15 +61,15 @@ defect-free. It also creates a real trap — a low-runner with 3 defects on 800
 units computes to 3,750 PPM and looks like the worst part in the plant, when
 three defects on 800 units is statistical noise.
 
-**8D reports** — 12 total, 4 open. The SUP-003 pair is the important one:
-8D-2025-003 (closed, opened Feb 2025) records weld porosity being fixed;
-8D-2026-011 (open, June 2026) records it recurring, and explicitly references
-the earlier report. That pair makes the Phase 2 veto decision demonstrable and
-gives Phase 6 a question that genuinely needs both routes.
+**8D reports** — 13 total, 4 open, 104 chunks after discipline-boundary
+chunking. Two pairs matter:
 
-The pattern IDs are coupled to `build_parts`. Editing that function reshuffles
-part assignment and silently invalidates this key. Re-measure with
-`backend/db/verify_data.py` after any generator change.
+- **SUP-003**: 8D-2025-003 (closed Feb 2025) records weld porosity being
+  fixed; 8D-2026-011 (open June 2026) records it recurring and references
+  the earlier report. Makes the Phase 2 status decision demonstrable.
+- **SUP-001**: 8D-2025-012 (closed, real die wear) and 8D-2026-009 (closed,
+  measurement artefact). The same supplier with one genuine problem and one
+  that was never a problem at all.
 
 ## Why defect data alone can mislead
 
@@ -63,9 +87,11 @@ Only the first is a supplier problem. SQL cannot distinguish the three,
 because the defect table looks identical in all cases. Separating them
 needs a document: an audit note, an 8D, a gauge R&R record.
 
-This is the strongest argument for routing to both SQL and documents. It
-is recorded here as reasoning, not built into the data — see Phase 6,
-where it becomes an eval question that genuinely requires both routes.
+This is the strongest argument for routing to both SQL and documents. Case 2
+is now built into the data as the SUP-001 artefact and is testable. Case 3
+remains reasoning only — no document records underreporting, and inventing
+one would mean fabricating an allegation rather than modelling a known
+weakness.
 
 ## Part naming and vehicle system pairing
 
@@ -82,12 +108,12 @@ stampings 18-26k, weld assemblies 9-14k, low runners 0.4-1.4k.
 This is deliberate. With uniform volumes, PPM and raw defect count always
 agree about who is worst. With this spread they disagree, so "which supplier
 has the most defects" and "which supplier has the worst defect rate" have
-different correct answers. That distinction is eval material for Phase 6.
+different correct answers.
 
 ## Defect events vs defect units
 
 `defects` rows are defect *events*; each carries a `quantity` of 1-4 units.
-So "how many defects" has two valid readings — 4,729 events, more units.
+So "how many defects" has two valid readings — 4,725 events, more units.
 Any question using that phrasing is ambiguous by construction, and the
 routing eval set must be explicit about which is meant.
 
@@ -100,10 +126,6 @@ silent failures, contradicting the prior that motivated the spike. The
 catalogue was chosen anyway, because one question passed by an unsound method
 that happened to give the right answer on this data — meaning the detection
 was not airtight and the true silent-failure rate could not be bounded.
-
-Carried forward: the agent selects a query and extracts parameters; pydantic
-validates before anything reaches the database; the tool must be able to
-decline rather than return the nearest match.
 
 ## Phase 2 — the veto decision
 
@@ -125,36 +147,26 @@ this happened before." A veto would block correct answers half the time.
 That fails the one-filtering-rule principle carried from App 1: a rule that is
 right for one question shape and wrong for another is not one rule.
 
-**Instead:** closed 8Ds are retrievable, ranked below open ones, and their
-status is shown in the trace. The agent states that a source is a closed 8D
-and when it closed. The reader judges.
+**Instead:** closed 8Ds are retrievable, grouped separately from open ones,
+and their status is shown. The reader judges.
+
+Phase 5 showed this does real work rather than being decorative. On the
+question "why is SUP-003's weld porosity getting worse", pure similarity
+ranks the closed 2025 report (0.2584) ahead of the open 2026 one (0.2728).
+Without the grouping, an agent answering a present-tense question would lead
+with a problem fixed eighteen months ago.
 
 ### Stale PPM data — no veto, and not built
 
 The dataset runs to August 2026 with no gaps, so staleness does not exist in
 it. A recency veto would be untestable — the same problem as the absence
-question in Phase 1, where a rule could not be demonstrated because the data
-could not express the condition.
-
-Building an untestable rule means being unable to show it works. Not built.
+question in Phase 1. Not built.
 
 ### What does veto: severity combined with recency
 
-Neither severity nor recency alone, but the pair. For a question about current
-state, a Critical defect within the last 90 days is admissible; a Minor defect
-from 18 months ago is not — regardless of how well it matches.
-
-This is testable on the existing data, it is a real quality-engineering rule,
-and it preserves governance-as-veto across both apps without forcing a fit
-where none exists.
-
-### Schema consequence
-
-- 8D status: indexed and filterable, never a hard filter
-- Severity: already a first-class dimension in `defect_codes`
-- Recency: derived from `detected_date`, already present
-
-The decision constrains behaviour, not structure. No new columns are required.
+Neither alone, but the pair. For a question about current state, a Critical
+defect within the last 90 days is admissible; a Minor defect from 18 months
+ago is not — regardless of how well it matches.
 
 ### The connecting idea across both apps
 
@@ -164,8 +176,8 @@ semantic match says.
 
 Both are the same claim — that a governance property can override a relevance
 score. What differs is which property, and App 2's had to be chosen rather
-than inherited. The first two candidates were rejected for stated reasons:
-one because it was question-dependent, one because it was untestable.
+than inherited. Two candidates were rejected for stated reasons: one because
+it was question-dependent, one because it was untestable.
 
 ## Phase 3 — schema, contract and generator
 
@@ -180,39 +192,45 @@ one because it was question-dependent, one because it was untestable.
 
 ### 8D disciplines as separate columns
 
-The eight disciplines are stored as eight columns rather than one text blob.
-Phase 5 chunks on discipline boundaries, and separate columns mean that
-happens without parsing and without a chunker splitting mid-discipline. Same
-insight that took App 1 from 78% to 95% with article-boundary chunking, built
-into the schema instead of handled downstream.
+Eight columns rather than one text blob. Phase 5 chunks on discipline
+boundaries, and separate columns mean that happens without parsing and
+without a chunker splitting mid-discipline. Same insight that took App 1 from
+78% to 95% with article-boundary chunking, built into the schema instead of
+handled downstream.
 
 ### Data contract
 
 `backend/db/contracts.py` validates every generated row with pydantic before
 anything is written, plus three dataset-level checks that row validation
-cannot see. Nothing reaches the database until all of them pass, so a failure
-leaves it untouched rather than half-seeded.
+cannot see. Nothing reaches the database until all pass.
 
-The contract caught two real problems on its first runs, both silent:
+The contract caught two silent problems on its first runs:
 
-1. **pandas converted `None` to `nan`** in the `part_id` and `closed_date`
-   columns of the 8D reports. No error at build time. Without the contract,
-   `nan` would have been written to Postgres and surfaced later as odd query
-   behaviour.
+1. **pandas converted `None` to `nan`** in the 8D reports' nullable columns.
+   No error at build time; `nan` would have reached Postgres.
 2. **Removing the `max(1, ...)` floor did not make absence possible.** Even
-   the lowest-volume part expected around 5 defects a month, so zero was
-   arithmetically unreachable. The check failed, which is what led to
-   low-runner parts — a fix to the cause rather than the symptom.
+   the lowest-volume part expected ~5 defects a month, so zero was
+   arithmetically unreachable. That failure led to low-runner parts — a fix
+   to the cause rather than the symptom.
 
-Both would have been believed fixed without the check. That is the third and
-fourth time in this project that a verification found something reading the
-code would not have.
+## Phase 5 — retrieval
 
-## Carried into Phase 4
+Gemini embeddings, Chroma storage, no local model. Keeps PyTorch out of the
+deploy, which matters on a 512 MB tier.
 
-- SQL tool is a fixed catalogue of parameterised queries
-- The agent selects the query and extracts parameters; pydantic validates
-  before anything reaches the database
-- The tool must be able to decline — "not answerable with the queries
-  available" — never the nearest match
-- Ambiguous questions state their interpretation
+**Relevance threshold: 0.35 cosine distance.** Measured, not assumed. Across
+seven test questions the bands separated cleanly: relevant matches 0.22-0.33,
+a question about data that does not exist 0.385-0.388, a wholly off-topic
+question 0.452-0.455. 0.35 sits in the gap with margin either side.
+
+**Known Phase 9 constraint.** chromadb pulls onnxruntime (80 MB), kubernetes
+(81 MB) and grpc (39 MB) as transitive dependencies. None is used —
+embeddings come from Gemini, and Chroma runs in-process. They cannot be
+declined. Deploy and dev requirements are split to keep pandas (72 MB) out of
+the deployed slug. If Render rejects the build at 512 MB, moving to pgvector
+in Postgres is the fix and removes all 200 MB.
+
+Chroma's index is also ephemeral on Render — the filesystem resets on every
+deploy. The index rebuilds from Postgres at startup, which takes seconds for
+104 chunks, and rebuild is the normal path rather than a recovery path so the
+deployed behaviour is the behaviour that gets tested.
