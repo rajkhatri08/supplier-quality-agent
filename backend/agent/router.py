@@ -8,8 +8,17 @@ The model sees the query catalogue's descriptions and a summary of what the
 documents contain. It does not see SQL, and it does not write SQL: it names a
 route and, for SQL routes, names a query from the fixed catalogue.
 
-No tuning yet. This is the baseline prompt, measured against the 24 questions
-frozen in eval/routing-set.json before this file existed.
+Change log, measured against eval/routing-set.json:
+  baseline  18/24 (75%), BOTH 1/6.
+            Five of six BOTH questions went to DOCS, each with a true reason
+            — the explanation does live in the reports. The prompt described
+            what a SQL-only answer would be missing ("its reason") but had no
+            equivalent for what a DOCS-only answer would be missing. The
+            router was answering "where does the explanation live?" when the
+            question is "what would a complete answer need?"
+  change 1  BOTH criterion made bidirectional: check whether a DOCS-only
+            answer would be an explanation with no evidence, as well as
+            whether a SQL-only answer would be a number with no reason.
 """
 
 import json
@@ -62,9 +71,15 @@ CHOOSE ONE ROUTE:
 SQL      — the answer is a number, a ranking, or a set of records.
 DOCS     — the answer is an explanation, a cause, an action taken, or a status
            recorded in a report.
-BOTH     — neither source alone gives a complete answer. Use this only when an
-           answer from one source would be wrong, misleading, or missing its
-           reason — not merely when both sources have something to say.
+BOTH     — neither source alone gives a complete answer. Check both
+           directions before choosing a single source:
+             - would a SQL-only answer be a number with no explanation?
+             - would a DOCS-only answer be an explanation with no evidence
+               that the thing described is actually happening, or a claim
+               about a number that the answer never shows?
+           If either is true, choose BOTH. If neither is, choose the single
+           source that holds the answer. Both sources having something to say
+           is not enough.
 NEITHER  — the data needed does not exist, or the question refers to something
            that is not in the data.
 
