@@ -1,6 +1,7 @@
 {
   "rule": "docs/routing-rule.md",
   "committed_before_router": true,
+  "note": "Two entries were revisited after the baseline run. Both changes are recorded here rather than made quietly, because reclassifying failures after seeing results is what the Phase 6 gate exists to prevent. The test applied: does the correction improve the system, or only the number? R05's does not change the router, so it is a genuine eval-set flaw. N03's would, so it stays counted as a miss.",
   "questions": [
 
     {"id": "R01", "label": "SQL",
@@ -19,9 +20,10 @@
      "question": "Which parts recorded no defects at all in August 2026?",
      "why": "Absence, answerable because low-runner parts exist. The five that return are the low runners."},
 
-    {"id": "R05", "label": "SQL",
+    {"id": "R05", "label": "NEITHER",
      "question": "For each commodity, which part had the worst PPM in the last 12 months?",
-     "why": "Ranking within groups. Pure computation."},
+     "why": "Originally labelled SQL. Corrected to NEITHER after the baseline run: no catalogue query groups by commodity — part_ppm_ranking ranks parts globally. The router read the manifest accurately and the original label assumed a capability that does not exist. This is a catalogue gap, not a routing error.",
+     "relabelled": "2026-09-07, after the baseline run. The reason is structural: the capability is absent, so NEITHER is the correct read of what is available. Correcting it does not change the router, which is the test for whether a relabel is legitimate."},
 
     {"id": "R06", "label": "SQL",
      "question": "Which defect code accounts for the largest share of SUP-003's defect units?",
@@ -37,7 +39,7 @@
 
     {"id": "R09", "label": "DOCS",
      "question": "Which quality issues are still open?",
-     "why": "Status recorded in the reports. The defects table has no concept of an open investigation."},
+     "why": "Status recorded in the reports. Known flaw: reports_8d.status is a Postgres column, so SQL could in principle answer this — but no catalogue query exposes it. Labelled DOCS because of what was built in Phase 4, not because of a principle. Flagged before the baseline run, not after."},
 
     {"id": "R10", "label": "DOCS",
      "question": "Has weld porosity at SUP-003 happened before, and what was done about it?",
@@ -69,7 +71,7 @@
 
     {"id": "BOTH05", "label": "BOTH",
      "question": "PN-1042 had a bad month in November 2025. Was it fixed?",
-     "why": "SQL shows the spike and shows subsequent months back to normal. 8D-2025-007 says why — a single coil, rejected and returned, with elongation testing added. 'Back to normal' and 'fixed' are different claims; only the document supports the second."},
+     "why": "SQL shows the spike and shows subsequent months back to normal. 8D-2025-007 says why — a single coil, rejected and returned, with elongation testing added. 'Back to normal' and 'fixed' are different claims; only the document supports the second. Noted as the weakest BOTH label in the set: a case can be made for DOCS alone, since D6 states the rate returned to baseline."},
 
     {"id": "BOTH06", "label": "BOTH",
      "question": "Is the weld porosity at SUP-003 the same issue as last year?",
@@ -85,7 +87,8 @@
 
     {"id": "N03", "label": "NEITHER",
      "question": "Why did SUP-011's PPM spike in March 2026?",
-     "why": "False premise. SUP-011 does not exist — ten suppliers, SUP-001 to SUP-010. The existence check catches this; the Phase 1 spike model missed it and refused for the wrong reason."},
+     "why": "False premise. SUP-011 does not exist — ten suppliers, SUP-001 to SUP-010.",
+     "baseline_note": "The router chose DOCS. Kept as a miss rather than reclassified: the router has no supplier list and cannot know SUP-011 is absent, but that is fixable by giving it one. Letting it off would improve the number without improving the system. The existence check in the SQL tool catches this downstream, so the system as a whole declines correctly — but the router should too."},
 
     {"id": "N04", "label": "NEITHER",
      "question": "What is the unit cost of the parts SUP-005 supplies?",
