@@ -31,6 +31,8 @@ Change log, measured against eval/routing-set.json:
 
   change 3  supplier_id extracted alongside the route, so retrieval can be
             filtered. Not a routing-accuracy change — a retrieval-quality one.
+
+  change 4  retry backoff shortened for the interactive path.
 """
 
 import json
@@ -172,7 +174,10 @@ def route(question: str) -> RoutingDecision:
             break
         except Exception as e:
             api_error = f"{type(e).__name__}: {e}"
-            wait = 10 * (attempt + 1)
+            # 2/4/6s rather than 10/20/30s. The longer backoff suits the
+            # overnight scoring script and is wrong for a screen — someone
+            # waiting 44 seconds assumes it is broken. Fail fast and say so.
+            wait = 2 * (attempt + 1)
             print(f"    API error, retrying in {wait}s")
             time.sleep(wait)
 

@@ -100,7 +100,7 @@ pre{
 .pass .body{margin-top:.35rem; color:var(--soft); max-width:44rem}
 .pass .dist{float:right; font:400 .75rem var(--mono); color:var(--soft)}
 .groupname{margin:1.25rem 0 .25rem; font-size:.875rem; font-weight:600}
-.groupnote{font-size:.8125rem; color:var(--soft); margin:0 0 .5rem}
+.groupnote{font-size:.8125rem; color:var(--soft); margin:0 0 .5rem; max-width:42rem}
 
 .hidden{display:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
@@ -204,6 +204,7 @@ async function ask() {
   $("route").classList.remove("hidden");
   $("sqlpanel").classList.add("hidden");
   $("docpanel").classList.add("hidden");
+  document.querySelectorAll(".declined").forEach(n => n.remove());
   ["ch-sql", "ch-docs"].forEach(id => {
     $(id).classList.remove("on");
     $(id).classList.add("pending");
@@ -213,8 +214,8 @@ async function ask() {
   $("reason").textContent = "";
   $("rmeta").textContent = "";
 
-  // Routing takes four to twenty-five seconds and the wait is unpredictable,
-  // so it is counted out loud. Dead air reads as broken.
+  // Routing latency is variable and can reach tens of seconds, so it is
+  // counted out loud. Dead air reads as broken.
   const t0 = Date.now();
   const tick = setInterval(() => {
     $("rmeta").textContent =
@@ -254,19 +255,11 @@ async function ask() {
   $("rmeta").textContent = `decided in ${(decision.latency_ms / 1000).toFixed(1)}s`;
 
   if (route === "NEITHER") {
-    $("docs-sub").textContent = "not consulted";
-    const p = document.createElement("p");
-    p.className = "declined";
-    p.textContent = "Neither source holds this. Nothing was queried.";
-    $("reason").after(p);
-    setTimeout(() => p.remove(), 0);   // replaced below by persistent render
     $("reason").insertAdjacentHTML("afterend",
       '<p class="declined">Neither source holds this. Nothing was queried.</p>');
     done();
     return;
   }
-
-  document.querySelectorAll(".declined").forEach(n => n.remove());
 
   let result;
   try {
@@ -303,8 +296,7 @@ function renderSql(t) {
 
   if (!t.ok) {
     $("sql-sub").textContent = "declined";
-    $("sqlbody").innerHTML =
-      `<p class="declined">${esc(t.reason)}</p>`;
+    $("sqlbody").innerHTML = `<p class="declined">${esc(t.reason)}</p>`;
     return;
   }
 
