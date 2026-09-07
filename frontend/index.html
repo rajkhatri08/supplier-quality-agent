@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supplier quality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9E7E0; --raised:#F2F1EC; --ink:#23262A; --soft:#5C6167;
+  --rule:#C5C2B8; --open:#8A2B2B; --closed:#4A5B52;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:400 0.9375rem/1.55 var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:52rem; margin:0 auto; padding:3rem 1.5rem 6rem}
+
+/* ---- ask ---- */
+h1{font-size:1.375rem; font-weight:600; margin:0 0 .35rem; letter-spacing:-.01em}
+.lede{color:var(--soft); margin:0 0 2rem; max-width:34rem}
+.ask{display:flex; gap:.5rem; align-items:stretch}
+input[type=text]{
+  flex:1; font:400 1rem var(--sans); color:var(--ink);
+  background:var(--raised); border:1px solid var(--rule);
+  padding:.75rem .9rem;
+}
+input[type=text]:focus-visible{outline:2px solid var(--ink); outline-offset:-1px}
+button{
+  font:500 .9375rem var(--sans); color:var(--raised); background:var(--ink);
+  border:1px solid var(--ink); padding:.75rem 1.4rem; cursor:pointer;
+}
+button:hover:not(:disabled){background:#000}
+button:disabled{opacity:.45; cursor:default}
+button:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+
+.examples{margin-top:.75rem; display:flex; flex-wrap:wrap; gap:.4rem}
+.examples button{
+  background:none; color:var(--soft); border:1px solid var(--rule);
+  font:400 .8125rem var(--sans); padding:.3rem .6rem;
+}
+.examples button:hover:not(:disabled){background:var(--raised); color:var(--ink)}
+
+/* ---- route: the hero ---- */
+.route{margin-top:3rem; border-top:1px solid var(--rule); padding-top:1.5rem}
+.channels{display:flex; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.ch{
+  flex:1; background:var(--paper); padding:1.1rem 1rem;
+  color:var(--rule); transition:background .35s, color .35s;
+}
+.ch.on{background:var(--ink); color:var(--raised)}
+.ch .name{font-size:1.0625rem; font-weight:600; letter-spacing:-.01em}
+.ch .sub{font:400 .8125rem var(--mono); opacity:.8; margin-top:.15rem}
+.ch.pending{animation:breathe 1.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+
+.reason{margin-top:.9rem; max-width:40rem}
+.meta{font:400 .8125rem var(--mono); color:var(--soft); margin-top:.4rem}
+.declined{
+  margin-top:.9rem; padding:.85rem 1rem;
+  border-left:3px solid var(--ink); background:var(--raised);
+}
+
+/* ---- panels ---- */
+.panel{margin-top:2.25rem; border-top:1px solid var(--rule); padding-top:1.25rem}
+.phead{display:flex; justify-content:space-between; align-items:baseline; gap:1rem}
+.phead h2{font-size:1rem; font-weight:600; margin:0}
+.phead .tag{font:400 .8125rem var(--mono); color:var(--soft)}
+
+table{width:100%; border-collapse:collapse; margin-top:.9rem; font:400 .8125rem var(--mono)}
+th{
+  text-align:right; font-weight:500; color:var(--soft);
+  padding:.35rem .6rem; border-bottom:1px solid var(--rule);
+}
+th:first-child,td:first-child{text-align:left; padding-left:0}
+td{padding:.35rem .6rem; text-align:right; border-bottom:1px solid rgba(197,194,184,.4)}
+tbody tr:last-child td{border-bottom:none}
+
+details{margin-top:.9rem}
+summary{cursor:pointer; font-size:.8125rem; color:var(--soft)}
+summary:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+pre{
+  margin:.6rem 0 0; padding:.9rem; overflow-x:auto;
+  background:var(--raised); border:1px solid var(--rule);
+  font:400 .75rem/1.5 var(--mono);
+}
+
+/* ---- passages ---- */
+.pass{padding:.9rem 0 .9rem 1rem; border-bottom:1px solid rgba(197,194,184,.4)}
+.pass:last-child{border-bottom:none}
+.pass.open{border-left:3px solid var(--open)}
+.pass.closed{border-left:3px solid var(--closed)}
+.pass .cite{font:500 .8125rem var(--mono)}
+.pass .body{margin-top:.35rem; color:var(--soft); max-width:44rem}
+.pass .dist{float:right; font:400 .75rem var(--mono); color:var(--soft)}
+.groupname{margin:1.25rem 0 .25rem; font-size:.875rem; font-weight:600}
+.groupnote{font-size:.8125rem; color:var(--soft); margin:0 0 .5rem}
+
+.hidden{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:34rem){
+  .wrap{padding:2rem 1rem 4rem}
+  .ask{flex-direction:column}
+  .channels{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Supplier quality</h1>
+  <p class="lede">Ask about defect data or corrective action reports. The agent
+  decides which to use, and shows you why.</p>
+
+  <div class="ask">
+    <input type="text" id="q" placeholder="Why is SUP-003's defect rate getting worse?"
+           autocomplete="off" aria-label="Question">
+    <button id="go">Ask</button>
+  </div>
+
+  <div class="examples" id="examples"></div>
+
+  <section class="route hidden" id="route" aria-live="polite">
+    <div class="channels">
+      <div class="ch" id="ch-sql">
+        <div class="name">Defect data</div>
+        <div class="sub" id="sql-sub">not consulted</div>
+      </div>
+      <div class="ch" id="ch-docs">
+        <div class="name">8D reports</div>
+        <div class="sub" id="docs-sub">not consulted</div>
+      </div>
+    </div>
+    <p class="reason" id="reason"></p>
+    <p class="meta" id="rmeta"></p>
+  </section>
+
+  <section class="panel hidden" id="sqlpanel">
+    <div class="phead">
+      <h2>Defect data</h2>
+      <span class="tag" id="sqltag"></span>
+    </div>
+    <div id="sqlbody"></div>
+  </section>
+
+  <section class="panel hidden" id="docpanel">
+    <div class="phead">
+      <h2>8D reports</h2>
+      <span class="tag" id="doctag"></span>
+    </div>
+    <div id="docbody"></div>
+  </section>
+
+</div>
+
+<script>
+const API = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+  ? "http://localhost:8000"
+  : window.API_BASE || "http://localhost:8000";
+
+// The router extracts a supplier but not a date range, so the window is
+// assumed and stated rather than silently applied. Sep 2025 - Aug 2026 is
+// the last twelve months the data covers.
+const WINDOW = {start_month: "2025-09-01", end_month: "2026-08-01",
+                start_date: "2025-09-01", end_date: "2026-08-31"};
+const WINDOW_LABEL = "assumed window Sep 2025 – Aug 2026";
+
+const EXAMPLES = [
+  "Why is SUP-003's defect rate getting worse?",
+  "SUP-001's PPM rose in mid-2026. Should we raise a corrective action request?",
+  "What was the root cause of the roof rail splitting?",
+  "Which parts recorded no defects in August 2026?",
+  "What is SUP-003's on-time delivery rate?",
+];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+EXAMPLES.forEach(text => {
+  const b = document.createElement("button");
+  b.textContent = text;
+  b.onclick = () => { $("q").value = text; ask(); };
+  $("examples").appendChild(b);
+});
+
+$("go").onclick = ask;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+
+let busy = false;
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!question || busy) return;
+  busy = true;
+  $("go").disabled = true;
+
+  $("route").classList.remove("hidden");
+  $("sqlpanel").classList.add("hidden");
+  $("docpanel").classList.add("hidden");
+  ["ch-sql", "ch-docs"].forEach(id => {
+    $(id).classList.remove("on");
+    $(id).classList.add("pending");
+  });
+  $("sql-sub").textContent = "deciding";
+  $("docs-sub").textContent = "deciding";
+  $("reason").textContent = "";
+  $("rmeta").textContent = "";
+
+  // Routing takes four to twenty-five seconds and the wait is unpredictable,
+  // so it is counted out loud. Dead air reads as broken.
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    $("rmeta").textContent =
+      `deciding — ${((Date.now() - t0) / 1000).toFixed(1)}s`;
+  }, 100);
+
+  let decision;
+  try {
+    const r = await fetch(`${API}/route`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question}),
+    });
+    if (!r.ok) throw new Error(`routing failed with status ${r.status}`);
+    decision = await r.json();
+  } catch (err) {
+    clearInterval(tick);
+    fail(`Could not reach the agent: ${err.message}`);
+    return;
+  }
+  clearInterval(tick);
+
+  if (decision.error) { fail(decision.error); return; }
+
+  const route = decision.route;
+  const usesSql = route === "SQL" || route === "BOTH";
+  const usesDocs = route === "DOCS" || route === "BOTH";
+
+  ["ch-sql", "ch-docs"].forEach(id => $(id).classList.remove("pending"));
+  $("ch-sql").classList.toggle("on", usesSql);
+  $("ch-docs").classList.toggle("on", usesDocs);
+  $("sql-sub").textContent = usesSql
+    ? (decision.query_id || "selected") : "not consulted";
+  $("docs-sub").textContent = usesDocs ? "searching" : "not consulted";
+
+  $("reason").textContent = decision.reason || "";
+  $("rmeta").textContent = `decided in ${(decision.latency_ms / 1000).toFixed(1)}s`;
+
+  if (route === "NEITHER") {
+    $("docs-sub").textContent = "not consulted";
+    const p = document.createElement("p");
+    p.className = "declined";
+    p.textContent = "Neither source holds this. Nothing was queried.";
+    $("reason").after(p);
+    setTimeout(() => p.remove(), 0);   // replaced below by persistent render
+    $("reason").insertAdjacentHTML("afterend",
+      '<p class="declined">Neither source holds this. Nothing was queried.</p>');
+    done();
+    return;
+  }
+
+  document.querySelectorAll(".declined").forEach(n => n.remove());
+
+  let result;
+  try {
+    const r = await fetch(`${API}/tools`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        question,
+        route,
+        query_id: decision.query_id,
+        supplier_id: decision.supplier_id,
+        sql_params: WINDOW,
+      }),
+    });
+    if (!r.ok) throw new Error(`tools failed with status ${r.status}`);
+    result = await r.json();
+  } catch (err) {
+    fail(`Tools failed: ${err.message}`);
+    return;
+  }
+
+  for (const t of result.tools) {
+    if (t.tool === "sql") renderSql(t);
+    else renderDocs(t);
+  }
+  done();
+}
+
+function renderSql(t) {
+  $("sqlpanel").classList.remove("hidden");
+  $("sqltag").textContent = t.ok
+    ? `${t.query_id} · ${t.row_count} rows · ${t.latency_ms}ms`
+    : t.failure_kind;
+
+  if (!t.ok) {
+    $("sql-sub").textContent = "declined";
+    $("sqlbody").innerHTML =
+      `<p class="declined">${esc(t.reason)}</p>`;
+    return;
+  }
+
+  $("sql-sub").textContent = t.query_id;
+  const cols = Object.keys(t.rows[0] || {});
+  const head = cols.map(c => `<th>${esc(c)}</th>`).join("");
+  const body = t.rows.map(r =>
+    `<tr>${cols.map(c => `<td>${esc(r[c])}</td>`).join("")}</tr>`).join("");
+
+  $("sqlbody").innerHTML = `
+    <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    <p class="meta">${WINDOW_LABEL} — the question did not specify one</p>
+    <details><summary>The query that ran</summary><pre>${esc(t.sql)}</pre></details>`;
+}
+
+function renderDocs(t) {
+  $("docpanel").classList.remove("hidden");
+
+  if (!t.ok) {
+    $("docs-sub").textContent = "no match";
+    $("doctag").textContent = t.failure_kind;
+    $("docbody").innerHTML = `<p class="declined">${esc(t.reason)}</p>`;
+    return;
+  }
+
+  $("docs-sub").textContent = `${t.open_count + t.closed_count} passages`;
+  $("doctag").textContent =
+    `${t.open_count} open · ${t.closed_count} closed · ${t.latency_ms}ms`;
+
+  const open = t.passages.filter(p => p.status === "Open");
+  const closed = t.passages.filter(p => p.status === "Closed");
+  let html = "";
+
+  if (open.length) {
+    html += `<p class="groupname">Open</p>`;
+    html += open.map(p => passage(p, "open")).join("");
+  }
+  if (closed.length) {
+    html += `<p class="groupname">Closed</p>
+      <p class="groupnote">Kept and shown, not filtered out. A closed report is
+      the wrong answer to what is failing now and the right answer to whether
+      this has happened before.</p>`;
+    html += closed.map(p => passage(p, "closed")).join("");
+  }
+  $("docbody").innerHTML = html;
+}
+
+function passage(p, cls) {
+  const text = p.text.split("\n").pop();
+  return `<div class="pass ${cls}">
+    <span class="dist">${p.distance.toFixed(3)}</span>
+    <div class="cite">${esc(p.citation)}</div>
+    <div class="body">${esc(text)}</div>
+  </div>`;
+}
+
+function fail(message) {
+  ["ch-sql", "ch-docs"].forEach(id => {
+    $(id).classList.remove("pending", "on");
+  });
+  $("sql-sub").textContent = "not consulted";
+  $("docs-sub").textContent = "not consulted";
+  $("reason").textContent = "";
+  $("rmeta").textContent = "";
+  document.querySelectorAll(".declined").forEach(n => n.remove());
+  $("reason").insertAdjacentHTML("afterend",
+    `<p class="declined">${esc(message)}</p>`);
+  done();
+}
+
+function done() { busy = false; $("go").disabled = false; }
+</script>
+</body>
+</html>
