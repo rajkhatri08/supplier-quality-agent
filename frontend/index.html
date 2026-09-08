@@ -160,9 +160,12 @@ pre{
 </div>
 
 <script>
-const API = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+// Local development talks to a local backend; anything else talks to the
+// deployed one. No build step and no environment variables — the page is a
+// static file, and one conditional is cheaper than a toolchain.
+const API = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
   ? "http://localhost:8000"
-  : window.API_BASE || "http://localhost:8000";
+  : "https://supplier-quality-agent.onrender.com";
 
 // The router extracts a supplier but not a date range, so the window is
 // assumed and stated rather than silently applied. Sep 2025 - Aug 2026 is
@@ -214,8 +217,10 @@ async function ask() {
   $("reason").textContent = "";
   $("rmeta").textContent = "";
 
-  // Routing latency is variable and can reach tens of seconds, so it is
-  // counted out loud. Dead air reads as broken.
+  // Routing latency is variable and can reach tens of seconds. On a free
+  // Render instance a cold start adds 50 seconds before the request is even
+  // received. Counting the wait out loud is the difference between "working"
+  // and "broken" to anyone watching.
   const t0 = Date.now();
   const tick = setInterval(() => {
     $("rmeta").textContent =
