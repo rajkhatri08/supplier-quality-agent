@@ -31,15 +31,22 @@ from tools.sql_tool import catalogue_manifest  # noqa: E402
 
 app = FastAPI(title="Supplier Quality Risk Agent")
 
-# Vercel serves the frontend from a different origin, so the browser needs
-# permission to call this. Tightened to the deployed origin before the
-# frontend goes live; wide open here because it runs on localhost during
-# development.
+# Only the deployed frontend and local development may call this. It was
+# ["*"] during development, which means any site on the internet could drive
+# the agent — harmless for a read-only API, but it costs Gemini calls and
+# there is no reason to leave it open.
+#
+# Vercel's per-deployment preview URLs are not in this list, so only the
+# stable production URL works. That is the intended trade.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://supplier-quality-agent.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
