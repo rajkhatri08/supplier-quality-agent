@@ -70,15 +70,17 @@ chunking. Two pairs matter:
 
 ## Why defect data alone can mislead
 
-From a month on a body-in-white line doing root-cause analysis, three
-distinct ways a PPM figure can be wrong:
+Three distinct ways a PPM figure can be wrong, all of them ordinary in
+body-in-white quality work:
 
 1. **Real degradation** — electrode wear, fixture drift, die wear, a
    supplier changing sub-suppliers. The parts genuinely got worse.
 2. **Measurement error** — gauge drift. The parts are fine; the
    instrument is wrong. Chasing this as a supplier problem wastes weeks.
-3. **Underreporting** — I saw manual defect capture where recorded counts
-   were lower than actual counts. The data is wrong on purpose.
+3. **Underreporting** — where defect capture is manual, recorded counts can
+   be lower than actual counts. Manual entry at the point of inspection is a
+   known weakness in defect recording, and it is the one failure mode that
+   makes the data wrong deliberately rather than accidentally.
 
 Only the first is a supplier problem. SQL cannot distinguish the three,
 because the defect table looks identical in all cases. Separating them
@@ -233,25 +235,17 @@ not be checked.
 
 ## Phase 5 — retrieval
 
-Gemini embeddings, Chroma storage, no local model. Keeps PyTorch out of the
-deploy, which matters on a 512 MB tier. Same approach as App 1.
+Gemini embeddings, no local model. Keeps PyTorch out of the deploy, which
+matters on a 512 MB tier. Same approach as App 1.
 
 **Relevance threshold: 0.35 cosine distance.** Measured, not assumed. Across
 seven test questions the bands separated cleanly: relevant matches 0.22-0.33,
 a question about data that does not exist 0.385-0.388, a wholly off-topic
 question 0.452-0.455. 0.35 sits in the gap with margin either side.
 
-**Known Phase 9 constraint.** chromadb pulls onnxruntime (80 MB), kubernetes
-(81 MB) and grpc (39 MB) as transitive dependencies. None is used —
-embeddings come from Gemini, and Chroma runs in-process. They cannot be
-declined. Deploy and dev requirements are split to keep pandas (72 MB) out of
-the deployed slug. If Render rejects the build at 512 MB, moving to pgvector
-in Postgres is the fix and removes all 200 MB.
-
-Chroma's index is also ephemeral on Render — the filesystem resets on every
-deploy. The index rebuilds from Postgres at startup, which takes seconds for
-104 chunks, and rebuild is the normal path rather than a recovery path so the
-deployed behaviour is the behaviour that gets tested.
+Chunking is on 8D discipline boundaries — 13 reports become 104 chunks, one
+per populated discipline. The schema was designed for this in Phase 3, so no
+parsing is required and no chunk can split mid-discipline.
 
 ## Phase 6 — the routing rule
 
@@ -350,3 +344,53 @@ The assumed date window is printed under every SQL table. The router extracts
 a supplier but not a date range, so the frontend supplies one. Hiding that
 would be a number with a concealed assumption, which is the exact failure the
 project is about.
+
+## Phase 9 — deployment
+
+
+- **Frontend** — https://supplier-quality-agent.vercel.app
+- **Backend** — https://supplier-quality-agent.onrender.com (Render, Singapore)
+- **Database** — Neon Postgres 18 (AWS Singapore), pooled endpoint
+
+### Chroma was replaced with pgvector
+
+App 1 used ChromaDB and App 2 started there. A clean install of the deploy
+requirements measured **476 MB against Render's 512 MB limit** — 93% of the
+budget before adding any application code.
+
+The weight was almost entirely unused: chromadb pulls onnxruntime (80 MB),
+kubernetes (81 MB) and grpc (39 MB) as transitive dependencies. None was
+needed — embeddings come from Gemini, and Chroma ran in-process rather than
+distributed — and none could be declined.
+
+Moving the vectors into Postgres with pgvector dropped the install to
+**107 MB**. The migration was verified rather than assumed: the retrieval
+test suite returned cosine distances identical to four decimal places, so
+behaviour was unchanged and only storage moved.
+
+Two problems disappeared with it. Render's filesystem is ephemeral, so a
+Chroma index had to be rebuilt on every deploy and every cold start; vectors
+in Postgres do not disappear. And `report_chunks` carries foreign keys to
+`reports_8d`, so a chunk cannot outlive the report it came from — a guarantee
+Chroma could not give.
+
+The index is still rebuilt by deleting and reinserting rather than upserting,
+so it stays a pure function of the reports table.
+
+### Known constraint
+
+Render's free tier spins down after inactivity, adding 50+ seconds to the
+first request. Combined with routing latency, a cold demo can take 90 seconds
+to first answer. Hitting `/health` a few minutes beforehand avoids it.
+
+### A failure worth recording
+
+The first deploy failed with `ModuleNotFoundError: No module named 'psycopg2'`
+— the `DATABASE_URL` set in Render's dashboard began with `postgresql://`
+rather than `postgresql+psycopg://`, so SQLAlchemy loaded its default psycopg2
+dialect instead of psycopg 3.
+
+Worth noting because nothing was silent: the process died at startup with the
+reason named. Had psycopg2 happened to be installed, it would have connected
+and worked, and the deployed service would have been running a different
+driver from local development without anyone knowing.
